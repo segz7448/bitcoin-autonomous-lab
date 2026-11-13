@@ -39,19 +39,28 @@ Date: 2026-11-13. Commit: 41a979f. Scope: brief phonemsg TASK 005 + TASK 006
 
 ### Accepted-block evidence (own engine, not generatetoaddress)
 
-| Height | Block hash | Nonce | Hashes |
-| --- | --- | --- | --- |
-| 1 | 0a70ae2aacce268d4b7a6b2a5a6ea70a582a2b768f1d52281f472e7f38175b2f | 0 | 1 |
-| 2 | 02282447dc56b8b71dec2cdff68ac24165c2773dd0bbb64a8e44bbbf8b6d11b6 | 0 | 1 |
-| 3 | 3a36f9d1342a7ac7da2b2f9be1c07d834761301a3f68ecb996ebdc4290ed6c3c | 1 | 2 |
+Canonical preserved run: `results/TASK_005_006_RESULTS.md`, captured
+2026-11-13T15:21:16Z, agent-managed cycles on a disposable regtest node.
+
+| Height | Block hash | Nonce | Hashes | Peak H/s | Session |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 2311193bf09ce990f9c82310d069779901853274baeadfbc3e6f8c1ffb996cfb | 2 | 3 | 197850.0 | a1465615 |
+| 2 | 7d44685f512651429914d7eef86131e4c0c89f4d159cd009611afb559a8968e4 | 0 | 1 | 90009.0 | 5f130271 |
+| 3 | 6c812ebf34036408d76e0cc0a592402d6fb2e35f011932ca4af83295badde0b4 | 0 | 1 | 101214.6 | e53edf79 |
+
+Run totals: 3 cycles, 3 accepted, 5 hashes, average 346.1 H/s.
+**Tiny-sample caveat:** regtest difficulty is trivial (1-3 hashes per block),
+so per-cycle average/peak rates are single-batch measurements over
+milliseconds; they describe this run only and are not a throughput claim.
 
 Each cycle: template acquired via getblocktemplate, candidate constructed by
 `mining.engine.builder`, nonce found by the project nonce searcher, verified
 independently by `mining.pow.validator`, submitted with submitblock, accepted
-(Core returned no rejection), confirmed best block at its height. A second
-recorded run (screenshot evidence) shows the same 3/3 outcome with hashes
-27eebf52..., 514c1d0b..., 5833ccbc.... Low hash counts are expected: regtest
-difficulty is trivial (~1-2 hashes per block).
+(Core returned no rejection), confirmed best block at its height. A second recorded run (screenshot
+evidence, captured 15:24Z) independently shows the same 3/3 outcome with
+block hashes 330969eedb4db24b..., 5139d9eac4627fee..., 18454a17ccc022a6....
+An earlier ad-hoc live test of the session stage (three accepted cycles) was
+not hash-preserved; the canonical set above is the preserved evidence.
 
 ## The two skipped GPU tests - investigated
 
