@@ -13,7 +13,37 @@ Everything is built regtest-first: all experiments run on Bitcoin Core's
 private regression-test network, and every claimed capability is backed by
 a reproducible test or a recorded live run. Nothing here is simulated.
 
-## Status: TASK 001 milestone complete (verified live)
+## Status: TASK 002 milestone complete (verified live)
+
+The Blockchain Intelligence Engine is implemented and was executed live
+against Bitcoin Core 32.1 on regtest. Evidence: `results/TEST_RESULTS_002.md`
+plus genuine terminal captures in `results/`.
+
+- `blockchain/reader.py` - typed queries: height, best hash, blocks,
+  headers, txids, chain tips (getblockchaininfo, getblockcount,
+  getbestblockhash, getblockhash, getblock, getblockheader, getchaintips).
+- `blockchain/transactions.py` - transaction decode, inputs/outputs, fees
+  where the data exists, sizes, confirmations, mempool tracking and
+  new-transaction detection; unavailable data is reported explicitly.
+- `blockchain/analysis.py` - header/target/sizes interpretation,
+  independent merkle root verification, subsidy and fee accounting.
+- `blockchain/service.py` - background monitoring: cheap polling, new-block
+  detection, reorg detection with orphaned-branch records, sync status,
+  reconnection and backoff on RPC failures.
+- `blockchain/storage.py` - SQLite persistence for blocks, transactions,
+  mempool sightings, sync state and monitor events; reorg-safe.
+- `agent/interface.py` - structured machine-readable answers (height,
+  latest block, latest N blocks, block analysis, tx counts, difficulty,
+  mempool, new-block discovery).
+
+Latest verified run (see `results/`): all milestone checks passed; 106
+automated tests green including live regtest integration.
+
+### TASK 001 (complete)
+
+The first milestone - the Bitcoin Core regtest integration - is implemented
+and was executed live against Bitcoin Core 32.1. Evidence:
+`results/TEST_RESULTS.md` plus genuine terminal captures in `results/`.
 
 The first milestone - the Bitcoin Core regtest integration - is implemented
 and was executed live against Bitcoin Core 32.1. Evidence:
@@ -54,7 +84,8 @@ Requires Python 3.10+ (standard library only) and Bitcoin Core
 
 ```bash
 export BAL_BITCOIND=/path/to/bitcoind     # or put bitcoind on PATH
-python3 scripts/milestone_001.py          # the live milestone, end to end
+python3 scripts/milestone_001.py          # regtest integration, live
+python3 scripts/milestone_002.py          # intelligence engine, live
 python3 -m unittest discover -s tests -t .  # full test suite
 ```
 
@@ -73,9 +104,12 @@ python3 -m unittest discover -s tests -t .  # full test suite
 
 - **TASK 001 (done):** node management, JSON-RPC, chain monitoring,
   independent block verification, regtest block generation, test suite.
-- **Next:** live chain monitoring loop, PoW template mining on regtest
-  (`mining/template_miner.py` is implemented and tested), then GPU research
-  and the autonomous agent layer.
+- **TASK 002 (done):** blockchain intelligence engine - monitoring service,
+  transaction intelligence, block analysis with merkle verification,
+  SQLite persistence, reorg handling, agent query interface.
+- **Next:** live ZMQ-based chain notifications, PoW template mining on
+  regtest (`mining/template_miner.py` is implemented and tested), then GPU
+  research and the autonomous agent layer.
 - **Not in scope yet:** mainnet mining, GPU mining (blocked until the Core
   integration is established and tested), paid infrastructure.
 

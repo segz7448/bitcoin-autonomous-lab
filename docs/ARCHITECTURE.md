@@ -27,6 +27,17 @@ bitcoin-autonomous-lab/
                      getblock replies.
     monitor.py       ChainMonitor: snapshots, independent block
                      verification, generate-and-verify cycles.
+    reader.py        BlockchainReader: typed chain queries (blocks,
+                     headers, txids, tips). No state.
+    analysis.py      BlockAnalyzer: header/target/sizes interpretation,
+                     merkle verification, subsidy and fee accounting.
+    transactions.py  TransactionIntelligence: decode, fees where
+                     available, confirmations, mempool tracking.
+    service.py       MonitoringService: poll loop, new-block detection,
+                     reorg detection, sync status, backoff/reconnect.
+    storage.py       ChainStore: SQLite persistence for blocks, txs,
+                     mempool sightings, sync state, monitor events;
+                     reorg-safe (orphaned branches are kept).
   mining/        Mining algorithms and PoW experiments (see mining/README).
     miner.py         CPU nonce scanner + verify_pow.
     block.py         BIP34/BIP141 coinbase construction, block assembly.

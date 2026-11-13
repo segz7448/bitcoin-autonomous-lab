@@ -115,8 +115,20 @@ class BitcoinRPC:
         )
         logger.debug("rpc %s(%s)", method,
                      ", ".join(json.dumps(p)[:80] for p in params))
-        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-            reply = json.loads(resp.read())
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                reply = json.loads(resp.read())
+        except urllib.error.HTTPError as exc:
+            # Core answers RPC-level errors with HTTP 4xx/5xx plus a JSON
+            # error body; surface the JSON-RPC error, not the HTTP status.
+            try:
+                reply = json.loads(exc.read())
+            except Exception:
+                raise exc
+            if reply.get("error"):
+                raise RPCError(reply["error"]["code"],
+                               reply["error"]["message"]) from exc
+            raise
         if reply.get("error"):
             raise RPCError(reply["error"]["code"], reply["error"]["message"])
         return reply["result"]
@@ -175,3 +187,35 @@ class BitcoinRPC:
 
     def submit_block(self, block_hex: str):
         return self.call("submitblock", block_hex)
+
+    # --- Headers / chain tips (TASK 002) ------------------------------------
+    def get_block_header(self, block_hash: str) -> dict:
+        return self.call("getblockheader", block_hash)
+
+    def get_chain_tips(self) -> list:
+        return self.call("getchaintips")
+
+    # --- Transactions / mempool (TASK 002) ------------------------------------
+    def get_raw_transaction(self, txid: str, verbose: bool = True) -> dict:
+        return self.call("getrawtransaction", txid, verbose)
+
+    def decode_raw_transaction(self, tx_hex: str) -> dict:
+        return self.call("decoderawtransaction", tx_hex)
+
+    def get_raw_mempool(self, verbose: bool = False):
+        return self.call("getrawmempool", verbose)
+
+    def get_mempool_entry(self, txid: str) -> dict:
+        return self.call("getmempoolentry", txid)
+
+    def send_to_address(self, address: str, amount: float) -> str:
+        """Regtest wallet spend used by tests and the milestone demo."""
+        return self.call("sendtoaddress", address, amount)
+
+    # --- Chain manipulation (regtest test support) ------------------------------
+    def invalidate_block(self, block_hash: str) -> None:
+        """Regtest-only RPC: mark a block invalid, forcing a reorg."""
+        self.call("invalidateblock", block_hash)
+
+    def reconsider_block(self, block_hash: str) -> None:
+        self.call("reconsiderblock", block_hash)
