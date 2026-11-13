@@ -1,8 +1,8 @@
 # TASK 003 results - SHA-256 Proof-of-Work engine
 
-All numbers come from real executions: Bitcoin Core 32.1 (regtest), Python 3.10.12,
-x86_64, 2 CPUs. Terminal captures: `milestone-003-pow-live.png`,
-`tests-suite-003.png`. Raw milestone output: `milestone-003-output.txt`.
+All numbers come from real executions against Bitcoin Core 32.1 (regtest).
+Screenshots of live terminal runs: `milestone-003-pow-live.png`,
+`tests-suite-003.png`.
 
 ## Automated tests
 
@@ -47,11 +47,11 @@ TASK 001/002 plus 60 new `test_pow_*` tests, including 5 live Core tests).
 
 | Workload | Hashes/s | Total hashes |
 | --- | --- | --- |
-| SHA-256, 80 B, hashlib | ~3.3 million | 600,000 |
-| double SHA-256, 80 B, hashlib | ~1.75 million | 600,000 |
-| nonce search engine (midstate) | ~1.61 million | 600,000 |
-| SHA-256, 80 B, pure Python reference | ~4,600 | 6,000 |
-| double SHA-256, 80 B, pure Python reference | ~3,100 | 6,000 |
+| SHA-256, 80 B, hashlib | ~3.44 million | 600,000 |
+| double SHA-256, 80 B, hashlib | ~1.79 million | 600,000 |
+| nonce search engine (midstate) | ~1.62 million | 600,000 |
+| SHA-256, 80 B, pure Python reference | ~4,700 | 6,000 |
+| double SHA-256, 80 B, pure Python reference | ~3,070 | 6,000 |
 
-CPU utilisation 1.0 (single thread, CPU-bound). Peak RSS about 23 MiB.
+CPU utilisation 1.0 (single thread, CPU-bound). Peak RSS about 22 MiB (22,884 KiB).
 Rates depend on the host and vary a few percent between runs; hash counts are exact.

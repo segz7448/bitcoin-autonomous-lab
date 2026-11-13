@@ -14,8 +14,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
-import platform
 import statistics
 import struct
 import time
@@ -108,8 +106,6 @@ def bench_nonce_search(n: int, repeats: int) -> dict:
 
 def run_all(fast_n: int = 200_000, pure_n: int = 3_000, repeats: int = 5) -> dict:
     return {
-        "environment": {"python": platform.python_version(), "machine": platform.machine(),
-                        "system": platform.system(), "cpu_count": os.cpu_count()},
         "parameters": {"fast_hashes_per_run": fast_n, "pure_hashes_per_run": pure_n,
                        "repeats": repeats, "header_bytes": len(BENCH_HEADER)},
         "results": [bench_sha256_hashlib(fast_n, repeats), bench_double_hashlib(fast_n, repeats),
@@ -129,7 +125,6 @@ def main() -> None:
     if a.json:
         print(json.dumps(out, indent=2))
         return
-    print(f"env: {out['environment']}")
     for r in out["results"]:
         print(f"{r['name']:<48} median {r['rate_median_hs']:>12,.0f} H/s "
               f"(min {r['rate_min_hs']:,.0f}, max {r['rate_max_hs']:,.0f}) "

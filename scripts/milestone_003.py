@@ -127,7 +127,6 @@ def main() -> int:
 
     print("== 6. Benchmarks (CPU, 3 repeats, exact hash counts) ==")
     res = benchmark.run_all(fast_n=200_000, pure_n=2_000, repeats=3)
-    print(f"  python {res['environment']['python']} {res['environment']['machine']} cpus={res['environment']['cpu_count']}")
     for b in res["results"]:
         print(f"  {b['name']:<48} {b['rate_median_hs']:>12,.0f} H/s median  "
               f"(total {b['total_hashes']:,} hashes, cpu {b['cpu_utilization_median']}, rss {b['peak_rss_kib']} KiB)")
