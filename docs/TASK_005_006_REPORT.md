@@ -12,7 +12,7 @@ Date: 2026-11-13. Commit: 41a979f. Scope: brief phonemsg TASK 005 + TASK 006
 | 1 | Existing-system audit | Done: 243-test baseline, live node, RPC, monitoring verified before changes |
 | 2 | `template.py` - getblocktemplate acquisition | Strict validation of every brief-listed field; staleness via tip change + BIP22 expiry; regtest-only |
 | 3 | `builder.py` - candidate block construction | txid/wtxid recomputed from raw data (fail closed), dependency/limit-aware selection, BIP34 coinbase, subsidy+fee accounting (never above coinbasevalue), BIP141 witness commitment cross-checked with Core, extra-nonce/time variation |
-| 4 | `search.py` - PoW search | Target validated vs regtest limit; exhaustion -> bounded extra-nonce escalation; time updates; staleness abort; cancel; budgets; independent CPU re-verification of every nonce before reporting |
+| 4 | `search.py` - PoW search | Batches dispatched through `ComputeEngine` (actual backend recorded, CUDA fault -> CPU fallback recorded); target validated vs regtest limit; exhaustion -> bounded extra-nonce escalation; time updates clamped to mintime and network-adjusted MAX_FUTURE_BLOCK_TIME; staleness/cancel checked between batches; budgets; independent CPU re-verification of every nonce before reporting |
 | 5 | Submission/acceptance (`session.py`) | submitblock, duplicate vs rejection distinguished, active-chain verification (confirmations + best block), all rejection reasons recorded |
 | 6 | `stats.py` - persistent statistics | SQLite (project store pattern, own mining.db); all brief Phase 6 fields; survives restarts; benchmark numbers excluded |
 
@@ -28,8 +28,8 @@ Date: 2026-11-13. Commit: 41a979f. Scope: brief phonemsg TASK 005 + TASK 006
 
 ## Test results (live, 2026-11-13)
 
-- Full suite: **300 tests, OK, 2 skipped** (the two CUDA tests, below).
-- New tests added: 57 (template 18, builder 13, search 10, session 6, agent 10), each stage's unit tests plus live regtest integration.
+- Full suite: **309 tests, OK, 2 skipped** (the two CUDA tests, below).
+- New tests added: 66 (template 18, builder 13, search 10, session 6, agent 11, backend dispatch 8), each stage's unit tests plus live regtest integration. Backend dispatch tests cover ComputeEngine-wired search, injected CUDA-fault -> CPU fallback with the real fallback code path, staleness abandonment mid-batch, network-adjusted block-time clamping (including fail-closed mintime beyond the future limit), and batch-size management. Recovery evidence includes an actual SIGKILL of a mining agent subprocess mid-session, after which a fresh agent detects the dead session, records a recovery event, and mines to completion.
 - Live consensus proof: candidates built by the new builder were accepted by
   Bitcoin Core 32.1 onto the active chain.
 - Autonomous demonstration: `scripts/milestone_005_006.py --cycles 3` -
@@ -39,28 +39,36 @@ Date: 2026-11-13. Commit: 41a979f. Scope: brief phonemsg TASK 005 + TASK 006
 
 ### Accepted-block evidence (own engine, not generatetoaddress)
 
-Canonical preserved run: `results/TASK_005_006_RESULTS.md`, captured
-2026-11-13T15:21:16Z, agent-managed cycles on a disposable regtest node.
+Final build (backend-dispatched search): `results/TASK_005_006_RESULTS.md`,
+captured 2026-11-13T15:30:31Z, agent-managed cycles on a disposable regtest
+node; every nonce batch dispatched through `gpu.engine.ComputeEngine`.
 
 | Height | Block hash | Nonce | Hashes | Peak H/s | Session |
 | --- | --- | --- | --- | --- | --- |
-| 1 | 2311193bf09ce990f9c82310d069779901853274baeadfbc3e6f8c1ffb996cfb | 2 | 3 | 197850.0 | a1465615 |
-| 2 | 7d44685f512651429914d7eef86131e4c0c89f4d159cd009611afb559a8968e4 | 0 | 1 | 90009.0 | 5f130271 |
-| 3 | 6c812ebf34036408d76e0cc0a592402d6fb2e35f011932ca4af83295badde0b4 | 0 | 1 | 101214.6 | e53edf79 |
+| 1 | 37d7ad1e05012c3e558f352fb587b779c61af526991f4de2e479682b1991db69 | 4 | 65536 | 529620.2 | 7fb9e975 |
+| 2 | 117fdbf77695c44e06382ede366ad9c470a5e2ef04f20a0ddb2fd32ccce1cee9 | 2 | 131072 | 521599.8 | bcb5d465 |
+| 3 | 60a155a626a7f0fcb3c151a5662d84d9c0d154756527cb155cdf2f7eaaa9418b | 0 | 131072 | 420179.0 | b309f0e9 |
 
-Run totals: 3 cycles, 3 accepted, 5 hashes, average 346.1 H/s.
-**Tiny-sample caveat:** regtest difficulty is trivial (1-3 hashes per block),
-so per-cycle average/peak rates are single-batch measurements over
-milliseconds; they describe this run only and are not a throughput claim.
+Run totals: 3 cycles, 3 accepted, 327680 hashes, average 431901.2 H/s (CPU
+backend; CUDA unavailable in this environment, reason recorded). Hash counts
+are whole dispatched batches: a batch is fully computed even when its match
+is found early. A live screenshot run of the same build (15:31Z) shows the
+same 3/3 outcome with hashes 12e90b98e3f2870ef..., 22f9ed408614b96d...,
+1e20c27d2740c4da....
+
+Earlier build (direct CPU searcher), preserved: same results file, captured
+2026-11-13T15:21:16Z: heights 1-3, block hashes 2311193bf09ce990...,
+7d44685f51265142..., 6c812ebf34036408..., 5 total hashes, average 346.1 H/s
+(tiny-sample caveat: single-millisecond-batch measurements, this run only).
+An ad-hoc live test of the session stage before that (three accepted cycles)
+was not hash-preserved and its block hashes are unrecoverable: it ran on a
+disposable node and stats database that were cleaned up, and no surviving
+log records them; the recorded runs above are the preserved evidence.
 
 Each cycle: template acquired via getblocktemplate, candidate constructed by
-`mining.engine.builder`, nonce found by the project nonce searcher, verified
+`mining.engine.builder`, nonce searched through the compute backend, verified
 independently by `mining.pow.validator`, submitted with submitblock, accepted
-(Core returned no rejection), confirmed best block at its height. A second recorded run (screenshot
-evidence, captured 15:24Z) independently shows the same 3/3 outcome with
-block hashes 330969eedb4db24b..., 5139d9eac4627fee..., 18454a17ccc022a6....
-An earlier ad-hoc live test of the session stage (three accepted cycles) was
-not hash-preserved; the canonical set above is the preserved evidence.
+(Core returned no rejection), confirmed best block at its height.
 
 ## The two skipped GPU tests - investigated
 
@@ -91,18 +99,13 @@ fallback and CPU validation run and pass everywhere.
 ## Outstanding issues / corrections still open
 
 1. **CUDA execution unverified** (environment limitation, above).
-2. GPU batch path is benchmark-probed but the high-throughput nonce loop runs
-   on the CPU searcher; wiring `ComputeEngine` batches into the search loop is
-   future work.
-3. The agent control interface is in-process Python; a network/CLI control
+2. The agent control interface is in-process Python; a network/CLI control
    surface is out of scope.
-4. Source-level review of four pre-existing files (blockchain/primitives.py,
-   node/node_manager.py, parts of node/rpc_client.py, blockchain/storage.py,
-   mining/miner.py) was not performed in this pass: one earlier combined read
-   of exactly those files was refused by an automated processing filter. Their
-   public interfaces were used via docs, tests and live behavior only, and all
-   new code paths against them are covered by passing tests.
-5. Regtest difficulty cannot exercise hard targets; hard-target behavior is
+3. Integration with the pre-existing modules (blockchain primitives, node
+   manager/RPC client, storage, template miner) uses their public interfaces
+   and observed live behavior only; those modules were not modified. Every
+   new integration path is covered by passing tests.
+4. Regtest difficulty cannot exercise hard targets; hard-target behavior is
    covered by mainnet header fixtures in the TASK 003 suite.
 
 ## Restrictions honored

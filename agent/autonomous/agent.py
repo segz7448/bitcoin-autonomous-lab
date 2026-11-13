@@ -164,7 +164,8 @@ class MiningAgent:
                 f"measured {self._compute.report.benchmark_hashrate:.0f} H/s")
             self._engine = MiningEngine(
                 self._rpc, stats=self._stats, stop_event=self._stop_event,
-                backend=backend)
+                backend=backend, compute=self._compute.engine,
+                batch_size=self._compute.batch_size)
             self._stop_event.clear()
             self._pause_event.clear()
             self._cycles_completed = 0
@@ -273,6 +274,22 @@ class MiningAgent:
                 self._cycles_completed += 1
                 self._last_cycle = cycle.as_dict()
                 self._write_state(AgentState.RUNNING.value)
+
+                if cycle.backend_fallback:
+                    self._decide(
+                        "backend-fallback",
+                        f"actual backend now {cycle.backend}: "
+                        f"{cycle.backend_fallback}")
+                if cycle.batches:
+                    new_size = self._compute.adjust_batch_size(
+                        cycle.seconds / cycle.batches)
+                    if new_size != self._engine.batch_size:
+                        self._decide(
+                            "batch-size-adjusted",
+                            f"batch_size {self._engine.batch_size} -> "
+                            f"{new_size} from measured batch time "
+                            f"{cycle.seconds / cycle.batches:.3f}s")
+                        self._engine.batch_size = new_size
 
                 if cycle.accepted:
                     failures = 0

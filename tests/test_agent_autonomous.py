@@ -1,6 +1,7 @@
 """TASK 006: autonomous agent lifecycle, control, recovery tests."""
 
 import json
+import multiprocessing
 import os
 import shutil
 import sys
@@ -25,6 +26,25 @@ class SyncedFakeChain(FakeChainRPC):
         info = super().get_blockchain_info()
         info["headers"] = info["blocks"]
         return info
+
+
+class _ChildChain(SyncedFakeChain):
+    def get_block_template(self):
+        time.sleep(0.3)
+        return super().get_block_template()
+
+
+def _killed_agent_child(db_path, state_path):
+    """Child process: mine through a real agent until the parent kills us."""
+    stats = MiningStatsStore(db_path)
+    agent = MiningAgent(_ChildChain(), stats, state_path,
+                        limits=ResourceLimits(
+                            max_cycles=100000, max_seconds_per_cycle=60,
+                            failure_backoff_seconds=0.01),
+                        requested_backend="cpu")
+    agent.start(PAYOUT)
+    while True:
+        time.sleep(1)
 
 
 def wait_for(predicate, timeout=15.0, interval=0.05):
@@ -168,6 +188,62 @@ class TestAgentLifecycle(AgentFixture):
         self.assertTrue(any(e["kind"] == "recovery" for e in events))
         with open(self.state_path) as fh:
             self.assertEqual(json.load(fh)["state"], "idle")
+
+    def test_recovery_after_actual_process_kill(self):
+        # Genuine interruption evidence: a real subprocess mining through
+        # the agent is SIGKILLed mid-session, leaving its own state file
+        # behind. A new agent on the same state must detect the dead
+        # session, record a recovery event, and mine to completion.
+        if sys.platform.startswith("win"):
+            self.skipTest("fork-based kill test is POSIX-only")
+
+        class SlowChain(SyncedFakeChain):
+            def get_block_template(self):
+                time.sleep(0.3)
+                return super().get_block_template()
+
+        ctx = multiprocessing.get_context("fork")
+        proc = ctx.Process(
+            target=_killed_agent_child,
+            args=(self.db_path, self.state_path))
+        def _state():
+            try:
+                with open(self.state_path) as fh:
+                    return json.load(fh)
+            except (OSError, ValueError):
+                return {}
+
+        proc.start()
+        try:
+            self.assertTrue(wait_for(
+                lambda: _state().get("state") == "running", timeout=20))
+            self.assertTrue(wait_for(
+                lambda: _state().get("cycles_completed", 0) >= 1,
+                timeout=30))
+        finally:
+            proc.kill()   # SIGKILL: no cleanup handlers run
+            proc.join(timeout=15)
+        self.assertFalse(proc.is_alive())
+
+        # The dead process left the session mid-run, never idle.
+        with open(self.state_path) as fh:
+            killed_state = json.load(fh)
+        self.assertEqual(killed_state["state"], "running")
+        killed_cycles = killed_state["cycles_completed"]
+
+        rpc = SyncedFakeChain()
+        agent = self.make_agent(rpc)
+        self.assertTrue(agent.start(PAYOUT)["ok"])
+        self.assertTrue(wait_for(
+            lambda: agent.status()["state"] in ("idle", "stopped"),
+            timeout=30))
+        events = agent.errors()["events"]
+        recovery = [e for e in events if e["kind"] == "recovery"]
+        self.assertTrue(recovery, "killed session must trigger recovery")
+        self.assertIn(str(killed_cycles), recovery[0]["detail"])
+        self.assertTrue(wait_for(
+            lambda: agent.status()["cycles_completed"] == 3, timeout=30))
+        self.assertEqual(rpc.blocks, 3)
 
     def test_start_refused_off_regtest(self):
         rpc = SyncedFakeChain(chain="main")

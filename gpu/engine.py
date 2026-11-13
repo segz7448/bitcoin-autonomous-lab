@@ -136,11 +136,13 @@ class ComputeEngine:
     def batch(self, header, target, start_nonce=0, count=4096, threads=128):
         validate(header, target, start_nonce, count, threads)
         begin = time.perf_counter()
+        fallback_in_batch = False
         try:
             hashes, matches = self.backend.batch(header, target, start_nonce, count, threads)
         except (CudaError, OSError, MemoryError):
             self.backend = CpuBackend()
             self.fallback_reason = 'CUDA execution failed; recomputed full batch on CPU'
+            fallback_in_batch = True
             hashes, matches = self.backend.batch(header, target, start_nonce, count, threads)
         candidates = []
         for i, match in enumerate(matches):
@@ -149,7 +151,8 @@ class ComputeEngine:
                 verify_candidate(header, target, nonce, hashes[i])
                 candidates.append({'nonce': nonce, 'digest': hashes[i].hex()})
         return dict(backend=self.backend.name, requested_backend=self.requested_backend,
-                    fallback_reason=self.fallback_reason, hashes_computed=count,
+                    fallback_reason=self.fallback_reason,
+                    fallback_in_batch=fallback_in_batch, hashes_computed=count,
                     next_nonce=start_nonce+count, exhausted=start_nonce+count == NONCE_SPACE,
                     elapsed_seconds=time.perf_counter()-begin,
                     digests=[d.hex() for d in hashes], candidates=candidates)

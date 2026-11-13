@@ -55,13 +55,20 @@ node/, blockchain/               node management, RPC, chain intelligence
 
 ## Proof-of-Work search (Phase 4)
 
-The existing `NonceSearcher` performs the SHA256d scan. The engine adds:
-target validation against the regtest pow limit, nonce-range exhaustion
-handling via bounded extra-nonce rounds, block-time updates, staleness
-abort between rounds, graceful cancellation, and independent CPU
-verification of every reported nonce (`mining.pow.validator`) before it is
-submitted. Hashing is exact-accounted: hashes, seconds, average/peak
-hashrate, batches, extra-nonce rounds.
+Nonce batches are dispatched through `gpu.engine.ComputeEngine`, the
+project's CPU/CUDA backend abstraction: the backend that actually hashes
+each batch is recorded, a CUDA execution fault falls back to the CPU with
+the reason recorded, and every reported nonce is independently
+re-verified on the CPU (`mining.pow.validator`) before submission. The
+engine adds: target validation against the regtest pow limit, nonce-range
+exhaustion handling via bounded extra-nonce rounds, block-time updates
+that respect the template's `mintime` and the network-adjusted consensus
+limit (`getnetworkinfo` timeoffset + MAX_FUTURE_BLOCK_TIME; a template
+whose mintime exceeds that limit fails closed), staleness and
+cancellation checks between every batch, and exact accounting: hashes,
+seconds, average/peak hashrate, batches, extra-nonce rounds. Batch sizes
+are managed by the agent's `ComputationManager` from measured batch
+times. A `NonceSearcher`-based path remains for direct use and tests.
 
 ## Submission and acceptance (Phase 5)
 
@@ -129,7 +136,8 @@ multi-cycle autonomous runs, persistence across restarts).
   out of scope.
 * CUDA is selected only when genuinely usable; in environments without
   GPU access the agent honestly falls back to CPU and records the reason.
-* GPU batch search is exercised through `ComputeEngine` benchmarks; the
-  high-throughput nonce loop currently runs on the CPU searcher.
+  Mining batches dispatch through `ComputeEngine`, so a working CUDA
+  backend is used for real search batches; this environment has no CUDA
+  access, so all measured results here are CPU.
 * The agent is single-process; the control interface is in-process Python
   (dicts), consistent with `AgentInterface`.

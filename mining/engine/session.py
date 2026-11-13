@@ -19,8 +19,11 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+from gpu.engine import ComputeEngine
+
 from .builder import BuildError, build_candidate
-from .search import EngineSearcher, OutcomeStatus, SearchError
+from .search import (DEFAULT_BATCH_SIZE, EngineSearcher, OutcomeStatus,
+                     SearchError)
 from .stats import MiningStatsStore
 from .template import TemplateError, TemplateManager
 
@@ -56,6 +59,7 @@ class CycleResult:
     batches: int = 0
     nonce: int | None = None
     extranonce_counter: int = 0
+    backend_fallback: str | None = None
     submit_result: str | None = None
     accepted: bool = False
     coinbase_value: int | None = None
@@ -79,15 +83,33 @@ class MiningEngine:
 
     def __init__(self, rpc, stats: MiningStatsStore | None = None,
                  stop_event: threading.Event | None = None,
-                 backend: str = "cpu"):
+                 backend: str = "cpu",
+                 compute: ComputeEngine | None = None,
+                 batch_size: int = DEFAULT_BATCH_SIZE):
         self._rpc = rpc
         self.templates = TemplateManager(rpc)
         self._stats = stats
         self._stop_event = stop_event or threading.Event()
         self._backend = backend
+        # The search dispatches every batch through this ComputeEngine:
+        # backend selection and CUDA->CPU fault fallback actually apply to
+        # mining, and the recorded backend is the one that really hashed.
+        self._compute = compute if compute is not None else ComputeEngine(
+            backend=backend)
+        self._batch_size = batch_size
 
     def stop(self) -> None:
         self._stop_event.set()
+
+    @property
+    def batch_size(self) -> int:
+        return self._batch_size
+
+    @batch_size.setter
+    def batch_size(self, value: int) -> None:
+        if value < 1:
+            raise ValueError("batch_size must be positive")
+        self._batch_size = value
 
     def mine_cycle(self, payout_script: bytes,
                    max_seconds: float | None = 60.0,
@@ -121,7 +143,18 @@ class MiningEngine:
         result.coinbase_value = candidate.coinbase_value
         result.fees = candidate.fees
 
-        searcher = EngineSearcher(stop_event=self._stop_event)
+        # Network-adjusted time for the block-timestamp consensus limit
+        # (MAX_FUTURE_BLOCK_TIME). Nodes without getnetworkinfo default to
+        # zero offset.
+        try:
+            time_offset = int(self._rpc.get_network_info().get(
+                "timeoffset", 0))
+        except Exception:
+            time_offset = 0
+
+        searcher = EngineSearcher(stop_event=self._stop_event,
+                                  compute=self._compute,
+                                  batch_size=self._batch_size)
         try:
             outcome = searcher.search_candidate(
                 candidate,
@@ -129,6 +162,7 @@ class MiningEngine:
                 max_seconds=max_seconds,
                 max_extranonce_rounds=max_extranonce_rounds,
                 max_hashes=max_hashes,
+                network_time_offset=time_offset,
             )
         except SearchError as exc:
             return self._record(result, CycleStatus.SEARCH_ERROR,
@@ -140,6 +174,13 @@ class MiningEngine:
         result.batches = outcome.batches
         result.extranonce_counter = outcome.extranonce_counter
         result.nonce = outcome.nonce
+        result.backend = outcome.backend
+        result.backend_fallback = outcome.backend_fallback
+        if outcome.backend_fallback and self._stats is not None:
+            self._stats.record_event(
+                datetime.now(timezone.utc).isoformat(),
+                "backend-fallback",
+                f"session {session_id}: {outcome.backend_fallback}")
 
         if outcome.status is not OutcomeStatus.FOUND:
             return self._record(

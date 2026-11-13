@@ -22,6 +22,12 @@ _BENCH_HEADER = bytes(range(80))
 _BENCH_TARGET = (1 << 256) - 1   # every digest matches; pure throughput probe
 _BENCH_HASHES = 4096
 
+# Batch-size management bounds: batches stay small enough to bound memory
+# (each batch materializes its digests) and large enough to be efficient.
+BATCH_MIN = 4096
+BATCH_MAX = 1 << 20
+BATCH_TARGET_SECONDS = 1.0
+
 
 @dataclass
 class BackendReport:
@@ -48,13 +54,18 @@ class BackendReport:
 class ComputationManager:
     """Selects a usable backend from measured results and monitors it."""
 
-    def __init__(self, requested: str = "auto"):
+    def __init__(self, requested: str = "auto",
+                 batch_size: int = 65536):
         if requested not in ("auto", "cpu", "cuda"):
             raise ValueError("requested backend must be auto, cpu or cuda")
+        if not BATCH_MIN <= batch_size <= BATCH_MAX:
+            raise ValueError(
+                f"batch_size must be within [{BATCH_MIN}, {BATCH_MAX}]")
         self._requested = requested
         self._engine: ComputeEngine | None = None
         self._report: BackendReport | None = None
         self._batch_count = 0
+        self._batch_size = batch_size
 
     def probe(self) -> BackendReport:
         """Create the engine and measure a real batch on the live backend."""
@@ -105,3 +116,26 @@ class ComputationManager:
     @property
     def batch_count(self) -> int:
         return self._batch_count
+
+    @property
+    def batch_size(self) -> int:
+        return self._batch_size
+
+    def adjust_batch_size(self, batch_seconds: float) -> int:
+        """Adapt the batch size from a measured batch duration.
+
+        Batches much slower than the target window are halved (less
+        memory, quicker staleness reaction); much faster ones are doubled
+        (less dispatch overhead). Bounded by BATCH_MIN/BATCH_MAX. Returns
+        the (possibly unchanged) size; a change means the caller should
+        log a decision.
+        """
+        if batch_seconds <= 0:
+            return self._batch_size
+        new = self._batch_size
+        if batch_seconds > 4 * BATCH_TARGET_SECONDS:
+            new = max(BATCH_MIN, self._batch_size // 2)
+        elif batch_seconds < BATCH_TARGET_SECONDS / 4:
+            new = min(BATCH_MAX, self._batch_size * 2)
+        self._batch_size = new
+        return new
