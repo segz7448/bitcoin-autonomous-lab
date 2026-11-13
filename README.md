@@ -13,7 +13,19 @@ Everything is built regtest-first: all experiments run on Bitcoin Core's
 private regression-test network, and every claimed capability is backed by
 a reproducible test or a recorded live run. Nothing here is simulated.
 
-## Status: TASK 002 milestone complete (verified live)
+## Status: TASK 003 milestone complete (verified live)
+
+An independent Bitcoin Proof-of-Work engine lives in `mining/pow/`
+(SHA-256, double SHA-256, strict 80-byte headers, compact targets with
+Core's consensus checks, interruptible nonce search, validator, Core
+verification, benchmarks). Every block on a live Bitcoin Core 32.1 regtest
+node is re-hashed and PoW-checked by the engine and compared with Core;
+the engine also mines a block that Core accepts, and Core rejects the same
+invalid-PoW block the engine rejects. Six real mainnet headers are
+verified too. 166 automated tests pass. See `docs/POW_ENGINE.md` and
+`results/TEST_RESULTS_003.md`.
+
+## TASK 002 (complete, verified live)
 
 The Blockchain Intelligence Engine is implemented and was executed live
 against Bitcoin Core 32.1 on regtest. Evidence: `results/TEST_RESULTS_002.md`

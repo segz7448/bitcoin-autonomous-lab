@@ -1,0 +1,56 @@
++ python3 scripts/milestone_003.py
+== 1. SHA-256 (FIPS 180-4 vectors) and double SHA-256 ==
+  [PASS] SHA256('abc') - ba7816bf8f01cfea...
+  [PASS] SHA256('') 
+  [PASS] SHA256(1,000,000 x 'a')
+  [PASS] SHA256d('hello')
+  [PASS] own SHA-256 == hashlib for lengths 0..300
+== 2. Real MAINNET headers: serialize / hash / PoW ==
+  [PASS] mainnet block 0 - 000000000019d6689c085ae1... nonce=2083236893
+  [PASS] mainnet block 1 - 00000000839a8e6886ab5951... nonce=2573394689
+  [PASS] mainnet block 170 - 00000000d1145790a8694403... nonce=1889418792
+  [PASS] mainnet block 125552 - 00000000000000001e8d6829... nonce=2504433986
+  [PASS] mainnet block 300000 - 000000000000000082ccf8f1... nonce=222771801
+  [PASS] mainnet block 500000 - 00000000000000000024fb37... nonce=1560058197
+== 3. nBits decoding (Core rules) ==
+  [PASS] 0x1d00ffff -> 00000000ffff0000...
+  [PASS] 0x04923456 negative
+  [PASS] 0xff123456 overflow
+  [PASS] 0x00000000 zero
+== 4. Live Bitcoin Core regtest ==
+  node: chain=regtest height=0 (Bitcoin Core regtest, fresh datadir)
+  height  core hash (display)                                               engine==core 80B==core hex PoW  
+       0  0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206  True         True          ok
+       1  042d3f391192ca0f63f80674cabd7556ebf3cb9171a369ffed1d57b5677b7631  True         True          ok
+       2  6e261182a0384de46fa40f632e322b0f7ceb1b9b936660b5275b961301455bbb  True         True          ok
+       3  671942dabd82a6dcd8ff11ba3c5451ab2bc70ec15f8861e3a533edff02576c09  True         True          ok
+       4  62d4c650bed2405365470ace452e361577db824ae20d39daac1cb291e56f60c4  True         True          ok
+       5  1685a7565f237908cf354ec8bdcd9845807af47919510effc6b804a0c8486f6b  True         True          ok
+       6  365ac1649da51a53e4d286b0bbafba7b2cdd9bb75cfab094717ffef730d58495  True         True          ok
+  [PASS] all 7 blocks: bits_match
+  [PASS] all 7 blocks: chainwork_step_consistent
+  [PASS] all 7 blocks: deserialization_roundtrip
+  [PASS] all 7 blocks: difficulty_matches_core
+  [PASS] all 7 blocks: fast_hash_matches
+  [PASS] all 7 blocks: hash_matches_core
+  [PASS] all 7 blocks: header_is_prefix_of_block
+  [PASS] all 7 blocks: pow_valid
+  [PASS] all 7 blocks: prev_hash_links
+  [PASS] all 7 blocks: serialization_matches_core_hex
+  [PASS] all 7 blocks: target_matches_core
+  [PASS] engine mined a block that Core accepted - height=7 nonce=0 tries=1 hash=10229e7e39ece45d770f...
+  [PASS] invalid nonce: engine says high-hash, Core says the same - engine=high-hash core=high-hash
+  [PASS] chain tip unchanged after rejected block
+== 5. Nonce engine behaviour ==
+  [PASS] difficulty-target search finds valid PoW (nBits 0x1f00ffff) - nonce=103414 hashes=103415 1,597,649 H/s hash=0000ee91a3f9f6cafeee...
+  [PASS] nonce-space exhaustion reported, no wrap - hashes=1000 next=4294967296
+  [PASS] graceful interrupt - stopped after 491,520 hashes, resume at nonce 491520
+== 6. Benchmarks (CPU, 3 repeats, exact hash counts) ==
+  python 3.10.12 x86_64 cpus=2
+  sha256 (hashlib/OpenSSL, 80B)                       3,292,462 H/s median  (total 600,000 hashes, cpu 1.0, rss 23132 KiB)
+  double-sha256 (hashlib/OpenSSL, 80B)                1,750,138 H/s median  (total 600,000 hashes, cpu 1.0, rss 23132 KiB)
+  nonce search engine (midstate, target compare)      1,614,494 H/s median  (total 600,000 hashes, cpu 1.0, rss 23132 KiB)
+  sha256 (pure Python reference, 80B)                     4,645 H/s median  (total 6,000 hashes, cpu 1.0, rss 23132 KiB)
+  double-sha256 (pure Python reference, 80B)              3,072 H/s median  (total 6,000 hashes, cpu 1.0, rss 23132 KiB)
+MILESTONE RESULT: ALL CHECKS PASSED
+
