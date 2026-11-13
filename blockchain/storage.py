@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import stat
 import threading
 import time
 from pathlib import Path
@@ -127,10 +128,20 @@ class ChainStore:
     def __init__(self, path: str | Path):
         self.path = str(path)
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
-        # Create the file private (0600) before SQLite opens it; WAL/SHM
-        # sidecar files inherit its mode.
-        if not os.path.exists(self.path):
-            os.close(os.open(self.path, os.O_CREAT | os.O_WRONLY, 0o600))
+        # Refuse planted links and special files; repair existing database
+        # permissions before opening SQLite. As with MiningStatsStore,
+        # sqlite3.connect follows paths itself: use a private state directory
+        # to exclude path swapping between validation and connection.
+        if os.path.lexists(self.path):
+            mode = os.lstat(self.path).st_mode
+            if stat.S_ISLNK(mode) or not stat.S_ISREG(mode):
+                raise ValueError("chain database path must be a regular file, not a symlink")
+        else:
+            flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+            flags |= getattr(os, "O_NOFOLLOW", 0)
+            os.close(os.open(self.path, flags, 0o600))
+        if os.name == "posix":
+            os.chmod(self.path, 0o600)
         conn = sqlite3.connect(self.path, timeout=10.0, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         self.db = _LockedDB(conn)

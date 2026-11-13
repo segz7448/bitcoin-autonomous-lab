@@ -286,14 +286,15 @@ class TemplateManager:
 
     def __init__(self, rpc, expected_chain: str = "regtest",
                  pow_limit: int = POW_LIMIT_REGTEST):
+        if expected_chain != "regtest":
+            raise ValueError("TemplateManager only supports regtest")
         self._rpc = rpc
-        self._expected_chain = expected_chain
         self._pow_limit = pow_limit
 
     def acquire(self) -> MiningTemplate:
         """Fetch fresh work from the node and validate it."""
         chain = self._rpc.get_blockchain_info().get("chain")
-        if chain != self._expected_chain:
+        if chain != "regtest":
             raise TemplateError(
                 f"refusing mining work on chain {chain!r}; regtest only"
             )

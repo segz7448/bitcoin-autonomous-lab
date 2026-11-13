@@ -43,3 +43,13 @@ refusal is a safety feature, not a limitation to work around.
 The lab recomputes block hashes and proof-of-work targets from RPC reply
 fields rather than trusting them. Bugs or tampering that make the node
 report inconsistent chain data surface as failed verifications.
+
+## Local directory trust boundary
+
+Keep chain, mining and agent state in a private directory that other users
+cannot write. Both database stores reject a planted symlink or special file
+at the main database path and restrict existing files to 0600. This is not a
+complete defense against a directory writer: Python's SQLite connection
+opens the pathname again, and SQLite also manages journal/WAL/SHM paths.
+Neither store claims to exclude those races in attacker-writable directories.
+The disposable live verification uses a private temporary directory.
