@@ -13,7 +13,18 @@ Everything is built regtest-first: all experiments run on Bitcoin Core's
 private regression-test network, and every claimed capability is backed by
 a reproducible test or a recorded live run. Nothing here is simulated.
 
-## Status: TASK 004 audit and hardening complete (verified live)
+## Status: TASK 005/006 autonomous mining engine and agent complete (verified live)
+
+See `docs/MINING_ENGINE.md`. The autonomous agent obtains real mining work
+with `getblocktemplate`, constructs candidate blocks (BIP34 coinbase,
+BIP141 witness commitment, merkle root, fee accounting), searches SHA256d
+nonces, verifies solutions independently on the CPU, submits with
+`submitblock`, confirms acceptance on the active chain, records persistent
+SQLite statistics and decisions, and repeats without manual intervention.
+`generatetoaddress` is never used by the mining path. 300 automated tests
+pass, including live regtest runs of multi-block autonomous cycles.
+
+## TASK 004 audit and hardening (verified live)
 
 See `docs/AUDIT_004.md` for the defects found and fixed. TASK 003 summary:
 
@@ -24,7 +35,7 @@ verification, benchmarks). Every block on a live Bitcoin Core 32.1 regtest
 node is re-hashed and PoW-checked by the engine and compared with Core;
 the engine also mines a block that Core accepts, and Core rejects the same
 invalid-PoW block the engine rejects. Six real mainnet headers are
-verified too. 166 automated tests pass. See `docs/POW_ENGINE.md` and
+verified too. 166 automated tests passed at that milestone. See `docs/POW_ENGINE.md` and
 `results/TEST_RESULTS_003.md`.
 
 ## TASK 002 (complete, verified live)
@@ -100,6 +111,7 @@ Requires Python 3.10+ (standard library only) and Bitcoin Core
 export BAL_BITCOIND=/path/to/bitcoind     # or put bitcoind on PATH
 python3 scripts/milestone_001.py          # regtest integration, live
 python3 scripts/milestone_002.py          # intelligence engine, live
+python3 scripts/milestone_005_006.py      # autonomous mining agent, live
 python3 -m unittest discover -s tests -t .  # full test suite
 ```
 
@@ -126,9 +138,14 @@ python3 -m unittest discover -s tests -t .  # full test suite
 - **TASK 004 (done):** audit, hardening and retest - see `docs/AUDIT_004.md`
   (target/merkle/coinbase consensus checks, sync robustness, RPC and storage
   hardening, event-driven monitoring).
-- **Next:** GPU research and the autonomous agent layer.
-- **Not in scope yet:** mainnet mining, GPU mining (blocked until the Core
-  integration is established and tested), paid infrastructure.
+- **TASK 005/006 (done):** autonomous mining engine and AI mining agent -
+  template acquisition, candidate block construction, PoW search with
+  extra-nonce escalation, submission/acceptance verification, persistent
+  statistics, autonomous lifecycle with decisions, recovery, control
+  interface and resource limits. See `docs/MINING_ENGINE.md`.
+- **Next:** GPU-accelerated nonce search through ComputeEngine batches
+  (CUDA runtime blocked in the current environment; honest CPU fallback).
+- **Not in scope yet:** mainnet mining, paid infrastructure.
 
 ## Honest scope notes
 
