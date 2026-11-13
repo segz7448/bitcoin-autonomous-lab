@@ -20,7 +20,9 @@ from __future__ import annotations
 
 import enum
 import json
+import math
 import os
+import tempfile
 import threading
 import time
 from dataclasses import dataclass
@@ -54,16 +56,18 @@ def _require_positive_int(name: str, value) -> None:
 
 def _require_positive_number(name: str, value) -> None:
     if (isinstance(value, bool)
-            or not isinstance(value, (int, float)) or not value > 0):
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value) or value <= 0):
         raise ValueError(
-            f"{name} must be a positive number, got {value!r}")
+            f"{name} must be a positive finite number, got {value!r}")
 
 
 def _require_non_negative_number(name: str, value) -> None:
     if (isinstance(value, bool)
-            or not isinstance(value, (int, float)) or value < 0):
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value) or value < 0):
         raise ValueError(
-            f"{name} must be a non-negative number, got {value!r}")
+            f"{name} must be a non-negative finite number, got {value!r}")
 
 
 @dataclass
@@ -107,8 +111,12 @@ class MiningAgent:
                  limits: ResourceLimits | None = None,
                  requested_backend: str = "auto",
                  shutdown_timeout: float = 30.0):
-        if shutdown_timeout <= 0:
-            raise ValueError("shutdown_timeout must be positive")
+        if (isinstance(shutdown_timeout, bool)
+                or not isinstance(shutdown_timeout, (int, float))
+                or not math.isfinite(shutdown_timeout)
+                or shutdown_timeout <= 0):
+            raise ValueError(
+                "shutdown_timeout must be a positive finite number")
         self._rpc = rpc
         self._stats = stats
         self._state_path = state_path
@@ -133,16 +141,28 @@ class MiningAgent:
             "backend": self._compute.report.backend
             if self._compute.report else None,
         }
-        tmp = self._state_path + ".tmp"
-        # Both the temporary and the final state file are owner-only
-        # (0600) on supported systems, matching the mining database.
-        # The temp file is created private before any content is written;
-        # os.replace then carries that mode onto the final path, and the
-        # final chmod also repairs a previously permissive file.
-        fd = os.open(tmp, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "w") as fh:
-            json.dump(payload, fh)
-        os.replace(tmp, self._state_path)
+        # Race-safe atomic write: a private, uniquely-named temporary
+        # file is created atomically in the same directory (mkstemp uses
+        # O_CREAT|O_EXCL with mode 0600), then atomically renamed over
+        # the final path. There is no fixed temp name an attacker could
+        # pre-plant a symlink at, and os.replace never follows a symlink
+        # at the destination - it replaces the link itself. Both the
+        # temporary and the final file are owner-only (0600), matching
+        # the mining database; the final chmod also repairs a previously
+        # permissive file.
+        directory = os.path.dirname(os.path.abspath(self._state_path))
+        fd, tmp = tempfile.mkstemp(
+            dir=directory, prefix=".agent_state.", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as fh:
+                json.dump(payload, fh)
+            os.replace(tmp, self._state_path)
+        except BaseException:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
         if os.name == "posix":
             os.chmod(self._state_path, 0o600)
 

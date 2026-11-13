@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import stat
 import threading
 
 SCHEMA = """
@@ -89,9 +90,27 @@ class MiningStatsStore:
         self._path = path
         parent = os.path.dirname(os.path.abspath(path))
         os.makedirs(parent, exist_ok=True)
-        if not os.path.exists(path):
+        # Refuse unsafe database paths instead of clobbering their
+        # targets: a symlink (dangling or not) or a non-regular file is
+        # rejected outright. New files are created with O_NOFOLLOW where
+        # the platform offers it, so creation cannot be raced through a
+        # swapped-in link either. Residual, documented: the sqlite3
+        # stdlib API itself follows symlinks at connect time, so a link
+        # swapped in between this validation and connect cannot be
+        # excluded; the state directory is expected to be private.
+        if os.path.lexists(path):
+            mode = os.lstat(path).st_mode
+            if stat.S_ISLNK(mode):
+                raise ValueError(
+                    f"refusing symbolic-link database path: {path}")
+            if not stat.S_ISREG(mode):
+                raise ValueError(
+                    f"database path is not a regular file: {path}")
+        else:
             # Create the file private (0600) before SQLite opens it.
-            os.close(os.open(path, os.O_CREAT | os.O_WRONLY, 0o600))
+            flags = os.O_CREAT | os.O_WRONLY
+            flags |= getattr(os, "O_NOFOLLOW", 0)
+            os.close(os.open(path, flags, 0o600))
         _owner_only(path)
         self._lock = threading.Lock()
         self._conn = sqlite3.connect(path, check_same_thread=False)

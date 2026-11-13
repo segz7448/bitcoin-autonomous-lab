@@ -1,6 +1,6 @@
 # TASK 002 results - Blockchain Intelligence Engine
 
-> **Historical record: captured 2026-11-13 in the original execution environment (disposable Linux x86_64 sandbox, Python 3.10, Bitcoin Core 32.1 regtest).** Test counts below describe that run, not the current suite.
+> **Historical record: captured 2026-11-13 in the original test environment (Python 3.10, Bitcoin Core 32.1 regtest).** Test counts below describe that run, not the current suite.
 
 All evidence below comes from real executions against Bitcoin Core 32.1
 (regtest). Genuine terminal captures: `milestone-002-regtest-live.png` and

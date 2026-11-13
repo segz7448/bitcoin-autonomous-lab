@@ -415,6 +415,29 @@ class TestAgentShutdown(AgentFixture):
         self.assertEqual(
             stat.S_IMODE(os.stat(self.state_path).st_mode), 0o600)
 
+    @unittest.skipUnless(os.name == "posix", "symlink semantics are POSIX")
+    def test_state_write_never_follows_symlinks(self):
+        agent = self.make_agent(SyncedFakeChain())
+        victim = os.path.join(self.tmp, "victim.txt")
+        with open(victim, "w") as fh:
+            fh.write("IMPORTANT\n")
+        # A symlink planted at the final state path: os.replace swaps the
+        # link itself out; the target is never touched.
+        os.symlink(victim, self.state_path)
+        agent._write_state("idle")
+        with open(victim) as fh:
+            self.assertEqual(fh.read(), "IMPORTANT\n")
+        self.assertFalse(os.path.islink(self.state_path))
+        with open(self.state_path) as fh:
+            self.assertEqual(json.load(fh)["state"], "idle")
+        # A symlink planted at the legacy fixed temp name is simply never
+        # used: the real temp file is unique and private.
+        os.symlink(victim, self.state_path + ".tmp")
+        agent._write_state("idle")
+        with open(victim) as fh:
+            self.assertEqual(fh.read(), "IMPORTANT\n")
+        self.assertTrue(os.path.islink(self.state_path + ".tmp"))
+
 
 class TestResourceLimitsValidation(unittest.TestCase):
     def test_defaults_are_valid(self):
@@ -446,6 +469,33 @@ class TestResourceLimitsValidation(unittest.TestCase):
         for kwargs in invalid:
             with self.assertRaises(ValueError, msg=repr(kwargs)):
                 ResourceLimits(**kwargs)
+
+    def test_nonfinite_values_rejected(self):
+        inf, nan = float("inf"), float("nan")
+        invalid = [
+            {"max_seconds_per_cycle": inf}, {"max_seconds_per_cycle": nan},
+            {"max_hashes_per_cycle": inf},
+            {"cycle_pause_seconds": inf}, {"cycle_pause_seconds": nan},
+            {"failure_backoff_seconds": inf},
+            {"failure_backoff_seconds": nan},
+        ]
+        for kwargs in invalid:
+            with self.assertRaises(ValueError, msg=repr(kwargs)):
+                ResourceLimits(**kwargs)
+
+    def test_shutdown_timeout_validation(self):
+        tmp = tempfile.mkdtemp(prefix="bal-limits-")
+        self.addCleanup(shutil.rmtree, tmp, True)
+        stats = MiningStatsStore(os.path.join(tmp, "m.db"))
+        self.addCleanup(stats.close)
+        state_path = os.path.join(tmp, "agent_state.json")
+        for bad in (0, -1, float("nan"), float("inf"), "30", True):
+            with self.assertRaises(ValueError, msg=repr(bad)):
+                MiningAgent(SyncedFakeChain(), stats, state_path,
+                            shutdown_timeout=bad)
+        # A positive finite timeout constructs fine.
+        MiningAgent(SyncedFakeChain(), stats, state_path,
+                    shutdown_timeout=5.0)
 
 
 if __name__ == "__main__":

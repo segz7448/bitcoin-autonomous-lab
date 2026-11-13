@@ -1,6 +1,6 @@
 # TASK 004: CUDA computation engine
 
-> **Historical record: written 2026-11-13 in the original execution environment (disposable Linux x86_64 sandbox, Python 3.10, Bitcoin Core 32.1 regtest, userspace CUDA 13.0 toolkit, no GPU driver).** Its test counts describe that run; current suite counts are in `docs/CORRECTION_PRE_007.md`.
+> **Historical record: written 2026-11-13 in the original test environment (Python 3.10, Bitcoin Core 32.1 regtest, userspace CUDA 13.0 toolkit, no GPU driver).** Its test counts describe that run; current suite counts are in `docs/CORRECTION_PRE_007.md`.
 
 Status: CUDA source compiled successfully; GPU execution is NOT verified.
 CPU fallback and Bitcoin Core Regtest checks pass. The missing system driver

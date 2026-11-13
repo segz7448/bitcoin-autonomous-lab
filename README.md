@@ -22,7 +22,7 @@ nonces, verifies solutions independently on the CPU, submits with
 `submitblock`, confirms acceptance on the active chain, records persistent
 SQLite statistics and decisions, and repeats without manual intervention.
 `generatetoaddress` is never used by the mining path. The current suite
-runs 321 automated tests: 319 pass, 2 skip (real-CUDA tests; GPU execution
+runs 326 automated tests: 324 pass, 2 skip (real-CUDA tests; GPU execution
 is unavailable in this environment and not claimed), including live
 regtest runs of multi-block autonomous cycles.
 

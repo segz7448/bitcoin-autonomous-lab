@@ -60,6 +60,30 @@ class TestMiningStatsPermissions(unittest.TestCase):
             pass
         self.assertEqual(self._mode(db), 0o600)
 
+    @unittest.skipUnless(POSIX, "symlink semantics are POSIX")
+    def test_symlink_database_path_refused_not_clobbered(self):
+        victim = os.path.join(self.tmp, "victim.db")
+        with open(victim, "w") as fh:
+            fh.write("IMPORTANT\n")
+        link = os.path.join(self.tmp, "mining.db")
+        os.symlink(victim, link)
+        with self.assertRaises(ValueError):
+            MiningStatsStore(link)
+        with open(victim) as fh:
+            self.assertEqual(fh.read(), "IMPORTANT\n")
+        # Dangling symlink: also refused, target not created.
+        dangling = os.path.join(self.tmp, "gone.db")
+        link2 = os.path.join(self.tmp, "mining2.db")
+        os.symlink(dangling, link2)
+        with self.assertRaises(ValueError):
+            MiningStatsStore(link2)
+        self.assertFalse(os.path.exists(dangling))
+
+    @unittest.skipUnless(POSIX, "symlink semantics are POSIX")
+    def test_non_regular_database_path_refused(self):
+        with self.assertRaises(ValueError):
+            MiningStatsStore(self.tmp)  # a directory, not a file
+
     @unittest.skipUnless(POSIX, "POSIX file permissions only")
     def test_restriction_never_weakens_and_preserves_data(self):
         db = os.path.join(self.tmp, "mining.db")

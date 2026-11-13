@@ -1,6 +1,6 @@
 # TASK 003 results - SHA-256 Proof-of-Work engine
 
-> **Historical record: captured 2026-11-13 in the original execution environment (disposable Linux x86_64 sandbox, Python 3.10, Bitcoin Core 32.1 regtest).** Test counts below describe that run, not the current suite.
+> **Historical record: captured 2026-11-13 in the original test environment (Python 3.10, Bitcoin Core 32.1 regtest).** Test counts below describe that run, not the current suite.
 
 All numbers come from real executions against Bitcoin Core 32.1 (regtest).
 Screenshots of live terminal runs: `milestone-003-pow-live.png`,

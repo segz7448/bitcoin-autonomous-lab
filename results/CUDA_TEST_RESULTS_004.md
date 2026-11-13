@@ -1,6 +1,6 @@
 # TASK 004 CUDA validation
 
-> **Historical record: captured 2026-11-13 in the original execution environment (disposable Linux x86_64 sandbox, Python 3.10, Bitcoin Core 32.1 regtest, userspace CUDA 13.0 toolkit, no GPU driver).** Test counts below describe that run, not the current suite.
+> **Historical record: captured 2026-11-13 in the original test environment (Python 3.10, Bitcoin Core 32.1 regtest, userspace CUDA 13.0 toolkit, no GPU driver).** Test counts below describe that run, not the current suite.
 
 CUDA toolchain installed in user space at $0. Actual CUDA source compilation
 succeeded. Runtime initialization returns 35; no loadable system CUDA driver
