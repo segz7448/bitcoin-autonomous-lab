@@ -1,5 +1,7 @@
 # TASK 005/006 live demonstration evidence
 
+> **Historical record: captured 2026-11-13 in the original execution environment (disposable Linux x86_64 sandbox, Python 3.10, Bitcoin Core 32.1 regtest).** Counts and hashes below describe those runs. The pre-TASK 007 reproduction is in results/CORRECTION_PRE_007_RESULTS.md.
+
 ## Final build (backend-dispatched search), captured 2026-11-13T15:30:31Z
 
 Command: BAL_BITCOIND=<verified Core 32.1> python3 scripts/milestone_005_006.py --cycles 3

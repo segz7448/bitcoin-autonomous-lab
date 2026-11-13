@@ -6,8 +6,13 @@ worthless by design. Every experiment in this repository runs there.
 
 Properties used by this project:
 
-- `generatetoaddress` mines blocks on demand (regtest-only RPC). This is
-  what the milestone uses for block production.
+- `generatetoaddress` mines blocks on demand (regtest-only RPC). It is a
+  Bitcoin Core testing utility, used here only by the early milestones
+  (001/002) and by tests that need to advance the tip independently. It
+  is NOT the project's mining path: the autonomous mining engine
+  (`mining/engine/`, milestone 005/006) obtains work with
+  `getblocktemplate`, constructs candidate blocks itself, searches the
+  SHA256d nonce space itself, and submits with `submitblock`.
 - Block subsidy on a fresh regtest chain is 50 BTC per block; rewards need
   100 confirmations to mature (the same coinbase maturity rule as mainnet).
   Nothing on regtest has economic value.

@@ -12,8 +12,10 @@
   available, `BAL_RPC_USER`/`BAL_RPC_PASSWORD` are read from the environment
   - never from source code, never from a committed file.
 - **Regtest wallets only.** Milestone code creates a throwaway regtest
-  wallet (`bal`) solely so `generatetoaddress` has a payout address. It
-  holds valueless test coins and is deleted with the temporary datadir.
+  wallet (`bal`) solely to provide a payout address (for Core's
+  `generatetoaddress` testing utility in early milestones, and for the
+  coinbase the lab's own mining engine constructs in milestone 005/006).
+  It holds valueless test coins and is deleted with the temporary datadir.
 
 ## RPC client rules (TASK 004)
 
@@ -22,7 +24,11 @@
   `BAL_RPC_ALLOW_REMOTE=1` is set explicitly.
 - Replies are size-capped, must be JSON-RPC objects with the matching `id`,
   and anything else raises `RPCConnectionError` instead of leaking parser errors.
-- The SQLite store is created `0600`.
+- Local state is owner-only: the chain database, the mining statistics
+  database and the agent state file (including its temporary file) are all
+  created `0600`, and an existing file left permissive is restricted back
+  to `0600` when opened or written. Restriction is never weakened; on
+  platforms without POSIX permission semantics the chmod step is skipped.
 
 ## Network exposure
 

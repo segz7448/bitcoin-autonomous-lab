@@ -43,16 +43,27 @@ bitcoin-autonomous-lab/
     block.py         BIP34/BIP141 coinbase construction, block assembly.
     template_miner.py getblocktemplate -> build -> mine -> submitblock.
     pow/             Independent SHA-256 PoW engine (TASK 003), incl. benchmark.py
-  gpu/           GPU acceleration research. Empty by design (TASK 001
-                 restriction); see gpu/README for the research plan.
+    engine/          Autonomous mining engine (TASK 005): template
+                     acquisition/validation, candidate block builder, PoW
+                     search dispatching batches through ComputeEngine,
+                     session orchestration, owner-only (0600) SQLite
+                     mining statistics.
+  gpu/           CUDA engine + ComputeEngine CPU/CUDA backend abstraction.
+                 CUDA source compiles (CUDA 13.0); GPU execution is
+                 unverified here - see gpu/README.md.
   agent/         Autonomous agent orchestration.
     interface.py     AgentInterface: every operation returns a structured,
                      JSON-serializable result; no exceptions escape.
+    autonomous/      MiningAgent (TASK 006): autonomous lifecycle,
+                     measured backend selection, truthful shutdown
+                     (STOPPING vs STOPPED), validated resource limits,
+                     persistent state with recovery detection.
   dashboard/     Monitoring and analytics.
     status.py        Text rendering of node/chain state + block reports.
   tests/         Automated tests (unit + fake-node + live regtest).
   docs/          This documentation set.
-  scripts/       milestone_001.py live check, node start/stop helpers.
+  scripts/       milestone runners (001/002/003/005_006), node start/stop
+                 helpers.
 ```
 
 ## Technology decisions
@@ -86,6 +97,23 @@ scripts/milestone_001.py
    -> ChainMonitor                 snapshot / verify / generate-and-verify
    -> dashboard.status             human-readable rendering
 ```
+
+## Data flow (autonomous mining, milestones 005/006)
+
+```
+scripts/milestone_005_006.py
+   -> NodeManager.start()          disposable bitcoind -regtest
+   -> MiningAgent                  diagnostics -> measured backend probe
+   -> MiningEngine.mine_cycle      getblocktemplate -> build candidate ->
+                                   ComputeEngine nonce batches ->
+                                   independent CPU verify -> submitblock ->
+                                   acceptance verified on active chain
+   -> MiningStatsStore             owner-only SQLite history, decisions,
+                                   error/recovery events
+```
+
+`generatetoaddress` appears only in early milestones and tests as a Bitcoin
+Core testing utility; the mining path never uses it.
 
 ## Error handling and logging
 

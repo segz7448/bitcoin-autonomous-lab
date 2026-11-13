@@ -86,7 +86,10 @@ start/finish times, hashes, average and peak hashrate, backend, batches,
 nonce, extra-nonce counter, submission result, acceptance, coinbase value,
 fees and error text. Agent decisions and error/recovery events are kept in
 the same database. History survives restarts. Benchmark numbers never
-enter the store.
+enter the store. The database file is created owner-only (0600) before
+SQLite opens it - an existing file left permissive is restricted back to
+0600 on open - and the parent directory is created safely (pre-TASK 007
+hardening).
 
 ## Autonomous agent (Phases 7-11)
 
@@ -102,10 +105,22 @@ layer never bypasses consensus validation.
 Control interface (`MiningAgent`, all returning `{"ok": ...}` dicts):
 `start`, `stop`, `pause`, `resume`, `status`, `blockchain_status`,
 `backend_status`, `current_stats`, `historical_stats`, `decisions`,
-`errors`, `diagnostics`. Persistent state (JSON state file + SQLite)
-detects sessions that ended without shutdown and records a recovery event
-instead of resuming inconsistently. Resource limits cap cycles, per-cycle
-seconds/hashes, pacing and failure tolerance.
+`errors`, `diagnostics`. Persistent state (JSON state file, owner-only
+0600 like the database, + SQLite) detects sessions that ended without
+shutdown and records a recovery event instead of resuming inconsistently.
+Resource limits cap cycles, per-cycle seconds/hashes, pacing and failure
+tolerance, and are validated at construction: zero/negative cycle limits,
+non-positive time budgets, non-positive hash limits (None is the one
+explicit opt-out), negative pauses, failure limits below one and negative
+backoffs are all rejected with ValueError.
+
+Shutdown is truthful (pre-TASK 007 correction): `stop()` signals
+cancellation, joins the worker thread and checks `is_alive()`. STOPPED is
+reported and persisted only after the worker has verifiably terminated;
+if the join times out with the worker still running, `stop()` returns an
+explicit shutdown-timeout error, the state stays STOPPING in memory, in
+`status()` and in the state file, and the state converges to a truthful
+STOPPED when the worker actually exits.
 
 Privacy: only operational outcomes (backend name, fallback reason,
 measured hashrate) are reported. No GPU model, architecture, compute
@@ -124,9 +139,12 @@ BAL_BITCOIND=/path/to/bitcoind python3 scripts/milestone_005_006.py --cycles 3
 
 Tests: `tests/test_engine_template.py`, `tests/test_engine_builder.py`,
 `tests/test_engine_search.py`, `tests/test_engine_session.py`,
-`tests/test_agent_autonomous.py` - unit coverage plus live regtest
-integration (real templates, real constructed blocks accepted by Core,
-multi-cycle autonomous runs, persistence across restarts).
+`tests/test_agent_autonomous.py`, `tests/test_stats_permissions.py` -
+unit coverage (including database/state-file permissions, shutdown
+timeout truthfulness with a genuinely stuck worker, and resource-limit
+validation) plus live regtest integration (real templates, real
+constructed blocks accepted by Core, multi-cycle autonomous runs,
+persistence across restarts).
 
 ## Known limitations
 

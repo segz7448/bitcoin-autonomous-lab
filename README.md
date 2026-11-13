@@ -5,15 +5,15 @@ An open-source Bitcoin infrastructure and autonomous mining research project.
 The goal is an integrated system that runs and manages a Bitcoin full node,
 independently verifies blocks and transactions, monitors the chain in real
 time, implements proof-of-work (including the SHA-256 double-hash) from the
-protocol up, experiments with CPU mining, and - in later tasks - researches
-GPU acceleration, autonomous solo-mining orchestration, and an AI-agent
-interface for monitoring and controlling the infrastructure.
+protocol up, mines with its own engine through a CPU/CUDA backend
+abstraction, and runs an autonomous AI mining agent that orchestrates the
+whole lifecycle.
 
 Everything is built regtest-first: all experiments run on Bitcoin Core's
 private regression-test network, and every claimed capability is backed by
 a reproducible test or a recorded live run. Nothing here is simulated.
 
-## Status: TASK 005/006 autonomous mining engine and agent complete (verified live)
+## Status: TASK 005/006 engine and agent complete + pre-TASK 007 hardening (verified live)
 
 See `docs/MINING_ENGINE.md`. The autonomous agent obtains real mining work
 with `getblocktemplate`, constructs candidate blocks (BIP34 coinbase,
@@ -21,8 +21,17 @@ BIP141 witness commitment, merkle root, fee accounting), searches SHA256d
 nonces, verifies solutions independently on the CPU, submits with
 `submitblock`, confirms acceptance on the active chain, records persistent
 SQLite statistics and decisions, and repeats without manual intervention.
-`generatetoaddress` is never used by the mining path. 300 automated tests
-pass, including live regtest runs of multi-block autonomous cycles.
+`generatetoaddress` is never used by the mining path. The current suite
+runs 321 automated tests: 319 pass, 2 skip (real-CUDA tests; GPU execution
+is unavailable in this environment and not claimed), including live
+regtest runs of multi-block autonomous cycles.
+
+Pre-TASK 007 correction milestone (latest): mining database and agent
+state files enforced owner-only (0600), agent shutdown reporting made
+truthful (no STOPPED while the worker is alive; explicit shutdown-timeout
+error), resource limits validated, documentation reconciled, and the
+three-cycle autonomous run reproduced live. See
+`docs/CORRECTION_PRE_007.md` and `results/CORRECTION_PRE_007_RESULTS.md`.
 
 ## TASK 004 audit and hardening (verified live)
 
@@ -70,17 +79,13 @@ The first milestone - the Bitcoin Core regtest integration - is implemented
 and was executed live against Bitcoin Core 32.1. Evidence:
 `results/TEST_RESULTS.md` plus genuine terminal captures in `results/`.
 
-The first milestone - the Bitcoin Core regtest integration - is implemented
-and was executed live against Bitcoin Core 32.1. Evidence:
-`results/TEST_RESULTS.md` plus genuine terminal captures in `results/`.
-
 | Milestone requirement | Result |
 | --- | --- |
 | Start a local Bitcoin Core node (regtest) | `NodeManager.start()` launches `bitcoind -regtest`, waits for RPC, verifies `chain=regtest` |
 | Connect through JSON-RPC | `BitcoinRPC` over HTTP with cookie auth; no stored credentials |
 | getblockchaininfo | chain, height, best hash, difficulty retrieved |
 | getblockcount | retrieved and cross-checked after generation |
-| generatetoaddress | 3 blocks generated to a regtest wallet address |
+| generatetoaddress (Core testing utility, not the lab's mining path) | 3 blocks generated to a regtest wallet address |
 | getblock | tip block retrieved (height, confirmations, tx count, prev hash) |
 | Node recognizes generated blocks | per-block: `getblockhash(height)` matches, hash recomputed locally from header fields, PoW target check passes, prev-block linkage verified |
 
@@ -92,8 +97,10 @@ tests green including the live regtest integration test.
 ```
 node/        Bitcoin Core integration and node lifecycle management
 blockchain/  Block/transaction primitives, independent verification, monitoring
-mining/      Proof-of-work research (CPU miner, coinbase/BIP34/BIP141, benchmark)
-gpu/         GPU acceleration research (not yet implemented - see gpu/README.md)
+mining/      Proof-of-work research (CPU miner, coinbase/BIP34/BIP141,
+             benchmark, autonomous mining engine in mining/engine/)
+gpu/         CUDA engine and ComputeEngine backend abstraction (source
+             compiled; GPU execution unverified - see gpu/README.md)
 agent/       Autonomous agent orchestration interface
 dashboard/   Monitoring and analytics rendering
 tests/       Automated tests: unit, adversarial, fake-node, live regtest
@@ -140,11 +147,17 @@ python3 -m unittest discover -s tests -t .  # full test suite
   hardening, event-driven monitoring).
 - **TASK 005/006 (done):** autonomous mining engine and AI mining agent -
   template acquisition, candidate block construction, PoW search with
-  extra-nonce escalation, submission/acceptance verification, persistent
-  statistics, autonomous lifecycle with decisions, recovery, control
-  interface and resource limits. See `docs/MINING_ENGINE.md`.
-- **Next:** GPU-accelerated nonce search through ComputeEngine batches
-  (CUDA runtime blocked in the current environment; honest CPU fallback).
+  extra-nonce escalation (batches dispatched through ComputeEngine),
+  submission/acceptance verification, persistent statistics, autonomous
+  lifecycle with decisions, recovery, control interface and resource
+  limits. See `docs/MINING_ENGINE.md`.
+- **Pre-TASK 007 hardening (done):** owner-only mining database and agent
+  state files, truthful agent shutdown, resource-limit validation,
+  documentation reconciliation, live three-cycle reproduction. See
+  `docs/CORRECTION_PRE_007.md`.
+- **Next:** TASK 007; verification of CUDA execution on GPU-capable
+  hardware (source compiles under CUDA 13.0; runtime blocked here, honest
+  CPU fallback).
 - **Not in scope yet:** mainnet mining, paid infrastructure.
 
 ## Honest scope notes

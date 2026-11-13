@@ -12,6 +12,7 @@ never enter this store.
 
 from __future__ import annotations
 
+import os
 import sqlite3
 import threading
 
@@ -60,11 +61,38 @@ COLUMNS = (
 )
 
 
+def _owner_only(path: str) -> None:
+    """Restrict ``path`` to owner-only access (0600).
+
+    Applied both when the database is first created and when an existing
+    file is opened, so a database left permissive by other means is
+    tightened on next use. This only ever restricts access; it never
+    weakens it. On platforms where POSIX permission semantics do not
+    apply (os.name != 'posix') the call is skipped, matching the rest of
+    the project's cross-platform behaviour. A genuine chmod failure on a
+    supported system is raised, not hidden: silently storing mining
+    history with loose permissions would weaken the guarantee.
+    """
+    if os.name == "posix":
+        os.chmod(path, 0o600)
+
+
 class MiningStatsStore:
-    """SQLite-backed mining-session history."""
+    """SQLite-backed mining-session history.
+
+    The database file and its parent directory are created safely, and
+    the file is kept owner-only (0600) on supported systems - the same
+    protection the blockchain chain store applies to its database.
+    """
 
     def __init__(self, path: str):
         self._path = path
+        parent = os.path.dirname(os.path.abspath(path))
+        os.makedirs(parent, exist_ok=True)
+        if not os.path.exists(path):
+            # Create the file private (0600) before SQLite opens it.
+            os.close(os.open(path, os.O_CREAT | os.O_WRONLY, 0o600))
+        _owner_only(path)
         self._lock = threading.Lock()
         self._conn = sqlite3.connect(path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
@@ -98,8 +126,11 @@ class MiningStatsStore:
         if missing:
             raise ValueError(f"session record missing fields: {sorted(missing)}")
         with self._lock:
+            # The interpolated text is the module-level COLUMNS constant
+            # (a fixed allowlist; record_session rejects unknown keys) -
+            # only values are passed, as bound parameters.
             self._conn.execute(
-                f"INSERT INTO mining_sessions ({', '.join(COLUMNS)}) "
+                f"INSERT INTO mining_sessions ({', '.join(COLUMNS)}) "  # nosec B608 - fixed COLUMNS constant, bound values only
                 f"VALUES ({', '.join(':' + c for c in COLUMNS)})",
                 {c: record.get(c) for c in COLUMNS},
             )

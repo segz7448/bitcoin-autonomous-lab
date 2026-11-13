@@ -1,5 +1,7 @@
 # TASK 001 - Verified results
 
+> **Historical record: captured 2026-11-13 in the original execution environment (disposable Linux x86_64 sandbox, Python 3.10, Bitcoin Core 32.1 regtest).** Test counts below describe that run, not the current suite.
+
 All results below come from real executions on 2026-11-13 against Bitcoin
 Core 32.1 (release tarball SHA-256 verified against the published
 SHA256SUMS before use). The screenshots in this directory are genuine

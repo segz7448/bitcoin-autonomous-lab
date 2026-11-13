@@ -1,5 +1,7 @@
 # TASK 004 test results
 
+> **Historical record: captured 2026-11-13 in the original execution environment (disposable Linux x86_64 sandbox, Python 3.10, Bitcoin Core 32.1 regtest, userspace CUDA 13.0 toolkit, no GPU driver).** Test counts below describe that run, not the current suite.
+
 Environment: Bitcoin Core 32.1 regtest (live, no mocked RPC for the `*live*`
 and `*core_integration*` tests), Python 3.10, standard library only.
 

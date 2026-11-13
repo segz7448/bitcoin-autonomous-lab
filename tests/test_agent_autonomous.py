@@ -4,8 +4,10 @@ import json
 import multiprocessing
 import os
 import shutil
+import stat
 import sys
 import tempfile
+import threading
 import time
 import unittest
 
@@ -13,6 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from agent.autonomous.agent import MiningAgent, ResourceLimits  # noqa: E402
 from agent.autonomous.compute import ComputationManager  # noqa: E402
+from mining.engine.session import CycleResult, CycleStatus  # noqa: E402
 from mining.engine.stats import MiningStatsStore  # noqa: E402
 
 from tests.test_engine_session import FakeChainRPC  # noqa: E402
@@ -303,6 +306,146 @@ class TestLiveAutonomousAgent(AgentFixture):
         health = agent.diagnostics()
         self.assertTrue(health["ok"], health)
         self.assertTrue(health["checks"]["synchronized"])
+
+
+class _StubbornEngine:
+    """Engine whose mine_cycle blocks until released, ignoring cancellation.
+
+    Simulates a worker that does not respond to stop(): the agent must
+    never report STOPPED while a thread is stuck inside this engine.
+    """
+
+    def __init__(self):
+        self.batch_size = 4096
+        self.release = threading.Event()
+        self.calls = 0
+
+    def stop(self):
+        pass  # deliberately ignores cancellation
+
+    def mine_cycle(self, payout_script, max_seconds=None, max_hashes=None):
+        self.calls += 1
+        self.release.wait(timeout=30)
+        return CycleResult(session_id="stubborn", started_at="t0",
+                           finished_at="t1", seconds=0.01,
+                           status=CycleStatus.CANCELLED,
+                           error="cancelled by test")
+
+
+class TestAgentShutdown(AgentFixture):
+    """stop() must tell the truth about worker termination."""
+
+    def test_normal_shutdown_reports_stopped_after_worker_exits(self):
+        rpc = SyncedFakeChain()
+        agent = self.make_agent(rpc, limits=ResourceLimits(
+            max_cycles=100000, max_seconds_per_cycle=30,
+            cycle_pause_seconds=0.05, failure_backoff_seconds=0.01))
+        self.assertTrue(agent.start(PAYOUT)["ok"])
+        self.assertTrue(wait_for(
+            lambda: agent.status()["cycles_completed"] >= 1))
+        result = agent.stop()
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["state"], "stopped")
+        # The worker really terminated before STOPPED was reported.
+        self.assertFalse(agent._thread.is_alive())
+        self.assertEqual(agent.status()["state"], "stopped")
+        with open(self.state_path) as fh:
+            self.assertEqual(json.load(fh)["state"], "stopped")
+        self.assertFalse(agent.stop()["ok"])  # already stopped
+
+    def test_stop_from_paused(self):
+        rpc = SyncedFakeChain()
+        agent = self.make_agent(rpc, limits=ResourceLimits(
+            max_cycles=100000, max_seconds_per_cycle=30,
+            cycle_pause_seconds=0.05, failure_backoff_seconds=0.01))
+        self.assertTrue(agent.start(PAYOUT)["ok"])
+        self.assertTrue(wait_for(
+            lambda: agent.status()["cycles_completed"] >= 1))
+        self.assertTrue(agent.pause()["ok"])
+        result = agent.stop()
+        self.assertTrue(result["ok"], result)
+        self.assertFalse(agent._thread.is_alive())
+        self.assertEqual(agent.status()["state"], "stopped")
+
+    def test_shutdown_timeout_never_reports_false_stopped(self):
+        rpc = SyncedFakeChain()
+        agent = self.make_agent(rpc, limits=ResourceLimits(
+            max_cycles=100000, max_seconds_per_cycle=30,
+            failure_backoff_seconds=0.01), shutdown_timeout=0.2)
+        self.assertTrue(agent.start(PAYOUT)["ok"])
+        stubborn = _StubbornEngine()
+        agent._engine = stubborn
+        self.assertTrue(wait_for(lambda: stubborn.calls >= 1))
+
+        result = agent.stop()
+        self.assertFalse(result["ok"])
+        self.assertIn("shutdown timeout", result["error"])
+        self.assertEqual(result["state"], "stopping")
+        # Status and the persisted state file both reflect that the
+        # worker is still alive - no false STOPPED anywhere.
+        self.assertEqual(agent.status()["state"], "stopping")
+        self.assertTrue(agent._thread.is_alive())
+        with open(self.state_path) as fh:
+            self.assertEqual(json.load(fh)["state"], "stopping")
+        events = agent.errors()["events"]
+        self.assertTrue(any("shutdown timeout" in e["detail"]
+                            for e in events))
+        # A second worker must not be started while the stuck one lives.
+        self.assertFalse(agent.start(PAYOUT)["ok"])
+        self.assertTrue(agent._thread.is_alive())
+
+        # Once the worker actually terminates, the state converges to a
+        # truthful STOPPED on its own.
+        stubborn.release.set()
+        self.assertTrue(wait_for(
+            lambda: agent.status()["state"] == "stopped"))
+        self.assertFalse(agent._thread.is_alive())
+        with open(self.state_path) as fh:
+            self.assertEqual(json.load(fh)["state"], "stopped")
+
+    @unittest.skipUnless(os.name == "posix", "POSIX permissions only")
+    def test_agent_state_file_is_owner_only(self):
+        agent = self.make_agent(SyncedFakeChain())
+        agent._write_state("idle")
+        self.assertEqual(
+            stat.S_IMODE(os.stat(self.state_path).st_mode), 0o600)
+        # A previously permissive state file is repaired on next write.
+        os.chmod(self.state_path, 0o644)
+        agent._write_state("idle")
+        self.assertEqual(
+            stat.S_IMODE(os.stat(self.state_path).st_mode), 0o600)
+
+
+class TestResourceLimitsValidation(unittest.TestCase):
+    def test_defaults_are_valid(self):
+        ResourceLimits()
+
+    def test_valid_boundary_values_accepted(self):
+        ResourceLimits(max_cycles=1, max_seconds_per_cycle=0.5,
+                       max_hashes_per_cycle=1, cycle_pause_seconds=0.0,
+                       max_consecutive_failures=1,
+                       failure_backoff_seconds=0.0)
+
+    def test_none_hash_limit_is_explicit_opt_out(self):
+        limits = ResourceLimits(max_hashes_per_cycle=None)
+        self.assertIsNone(limits.max_hashes_per_cycle)
+
+    def test_invalid_values_rejected(self):
+        invalid = [
+            {"max_cycles": 0}, {"max_cycles": -5}, {"max_cycles": 1.5},
+            {"max_cycles": True}, {"max_cycles": "3"},
+            {"max_seconds_per_cycle": 0}, {"max_seconds_per_cycle": -0.5},
+            {"max_seconds_per_cycle": "60"},
+            {"max_hashes_per_cycle": 0}, {"max_hashes_per_cycle": -100},
+            {"cycle_pause_seconds": -0.1},
+            {"max_consecutive_failures": 0},
+            {"max_consecutive_failures": -2},
+            {"max_consecutive_failures": 1.5},
+            {"failure_backoff_seconds": -1.0},
+        ]
+        for kwargs in invalid:
+            with self.assertRaises(ValueError, msg=repr(kwargs)):
+                ResourceLimits(**kwargs)
 
 
 if __name__ == "__main__":

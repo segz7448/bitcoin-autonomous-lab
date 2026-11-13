@@ -34,6 +34,9 @@ RPC_PORT = 18450
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cycles", type=int, default=3)
+    parser.add_argument("--keep", metavar="DIR", default=None,
+                        help="preserve mining.db and agent_state.json in "
+                             "DIR before the disposable node is removed")
     args = parser.parse_args()
 
     bitcoind = os.environ.get("BAL_BITCOIND") or shutil.which("bitcoind")
@@ -132,6 +135,14 @@ def main() -> int:
               and chain["blocks"] == args.cycles)
         print(f"\nRESULT: {'PASS' if ok else 'FAIL'} - {accepted}/"
               f"{args.cycles} autonomous cycles accepted by Bitcoin Core")
+        if args.keep:
+            os.makedirs(args.keep, exist_ok=True)
+            for name in ("mining.db", "agent_state.json"):
+                src = os.path.join(workdir, name)
+                if os.path.exists(src):
+                    shutil.copy2(src, os.path.join(args.keep, name))
+                    mode = oct(os.stat(src).st_mode & 0o777)
+                    print(f"preserved {name} -> {args.keep}/ (mode {mode})")
         return 0 if ok else 1
     finally:
         manager.stop()

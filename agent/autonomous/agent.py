@@ -41,13 +41,43 @@ class AgentState(enum.Enum):
     IDLE = "idle"
     RUNNING = "running"
     PAUSED = "paused"
+    STOPPING = "stopping"  # cancellation signalled; worker not yet terminated
     STOPPED = "stopped"
     ERROR = "error"
 
 
+def _require_positive_int(name: str, value) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(
+            f"{name} must be a positive integer, got {value!r}")
+
+
+def _require_positive_number(name: str, value) -> None:
+    if (isinstance(value, bool)
+            or not isinstance(value, (int, float)) or not value > 0):
+        raise ValueError(
+            f"{name} must be a positive number, got {value!r}")
+
+
+def _require_non_negative_number(name: str, value) -> None:
+    if (isinstance(value, bool)
+            or not isinstance(value, (int, float)) or value < 0):
+        raise ValueError(
+            f"{name} must be a non-negative number, got {value!r}")
+
+
 @dataclass
 class ResourceLimits:
-    """Configurable limits so the agent never consumes unbounded resources."""
+    """Configurable limits so the agent never consumes unbounded resources.
+
+    Every field is validated on construction: nonsensical settings (zero
+    or negative cycle limits, negative time budgets, hash limits or
+    backoffs, a failure limit below one) are rejected with ValueError so
+    the controller can never run with an accidentally unbounded or
+    meaningless configuration. ``max_hashes_per_cycle=None`` is the one
+    explicit opt-out: no per-cycle hash cap, chosen deliberately rather
+    than by accident.
+    """
     max_cycles: int = 100
     max_seconds_per_cycle: float = 60.0
     max_hashes_per_cycle: int | None = None
@@ -55,17 +85,35 @@ class ResourceLimits:
     max_consecutive_failures: int = 3
     failure_backoff_seconds: float = 2.0
 
+    def __post_init__(self) -> None:
+        _require_positive_int("max_cycles", self.max_cycles)
+        _require_positive_number("max_seconds_per_cycle",
+                                 self.max_seconds_per_cycle)
+        if self.max_hashes_per_cycle is not None:
+            _require_positive_int("max_hashes_per_cycle",
+                                  self.max_hashes_per_cycle)
+        _require_non_negative_number("cycle_pause_seconds",
+                                     self.cycle_pause_seconds)
+        _require_positive_int("max_consecutive_failures",
+                              self.max_consecutive_failures)
+        _require_non_negative_number("failure_backoff_seconds",
+                                     self.failure_backoff_seconds)
+
 
 class MiningAgent:
     """Central autonomous mining controller (regtest only)."""
 
     def __init__(self, rpc, stats: MiningStatsStore, state_path: str,
                  limits: ResourceLimits | None = None,
-                 requested_backend: str = "auto"):
+                 requested_backend: str = "auto",
+                 shutdown_timeout: float = 30.0):
+        if shutdown_timeout <= 0:
+            raise ValueError("shutdown_timeout must be positive")
         self._rpc = rpc
         self._stats = stats
         self._state_path = state_path
         self._limits = limits or ResourceLimits()
+        self._shutdown_timeout = float(shutdown_timeout)
         self._compute = ComputationManager(requested=requested_backend)
         self._stop_event = threading.Event()
         self._pause_event = threading.Event()
@@ -86,9 +134,17 @@ class MiningAgent:
             if self._compute.report else None,
         }
         tmp = self._state_path + ".tmp"
-        with open(tmp, "w") as fh:
+        # Both the temporary and the final state file are owner-only
+        # (0600) on supported systems, matching the mining database.
+        # The temp file is created private before any content is written;
+        # os.replace then carries that mode onto the final path, and the
+        # final chmod also repairs a previously permissive file.
+        fd = os.open(tmp, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as fh:
             json.dump(payload, fh)
         os.replace(tmp, self._state_path)
+        if os.name == "posix":
+            os.chmod(self._state_path, 0o600)
 
     def _check_interrupted_session(self) -> None:
         """Detect a previous session that never shut down cleanly."""
@@ -147,7 +203,10 @@ class MiningAgent:
     # -- control interface (Phase 11) ----------------------------------------
     def start(self, payout_script: bytes) -> dict:
         with self._lock:
-            if self._state in (AgentState.RUNNING, AgentState.PAUSED):
+            # STOPPING is refused too: a worker from the previous session
+            # is still alive, and starting a second one would double-mine.
+            if self._state in (AgentState.RUNNING, AgentState.PAUSED,
+                               AgentState.STOPPING):
                 return {"ok": False, "error": f"agent already {self._state.value}"}
             self._check_interrupted_session()
             health = self.diagnostics()
@@ -182,16 +241,45 @@ class MiningAgent:
             return {"ok": True, "state": self._state.value, "backend": backend}
 
     def stop(self) -> dict:
+        """Signal cancellation and wait for the worker to actually exit.
+
+        STOPPED is reported and persisted only after the mining thread
+        has verifiably terminated. If the join times out with the worker
+        still alive, the agent reports an explicit shutdown-timeout
+        error and stays in STOPPING - status() and the state file keep
+        telling the truth, and a later stop() can complete the shutdown
+        once the worker exits.
+        """
         with self._lock:
-            if self._state not in (AgentState.RUNNING, AgentState.PAUSED):
+            if self._state not in (AgentState.RUNNING, AgentState.PAUSED,
+                                   AgentState.STOPPING):
                 return {"ok": False, "error": f"agent is {self._state.value}"}
-            self._state = AgentState.STOPPED
+            self._state = AgentState.STOPPING
             self._pause_event.clear()
             self._stop_event.set()
         if self._engine is not None:
             self._engine.stop()
-        if self._thread is not None:
-            self._thread.join(timeout=30)
+        worker = self._thread
+        if worker is not None:
+            worker.join(timeout=self._shutdown_timeout)
+            if worker.is_alive():
+                # Cancellation was signalled but the worker has NOT
+                # terminated: never report or persist a false STOPPED.
+                with self._lock:
+                    self._state = AgentState.STOPPING
+                self._write_state(AgentState.STOPPING.value)
+                self._event(
+                    "error",
+                    f"shutdown timeout: mining worker still running "
+                    f"{self._shutdown_timeout}s after cancellation")
+                return {"ok": False,
+                        "error": "shutdown timeout: worker did not "
+                                 f"terminate within "
+                                 f"{self._shutdown_timeout}s",
+                        "state": AgentState.STOPPING.value,
+                        "cycles_completed": self._cycles_completed}
+        with self._lock:
+            self._state = AgentState.STOPPED
         self._write_state(AgentState.STOPPED.value)
         self._decide("mining-stopped",
                      f"cycles_completed={self._cycles_completed}")

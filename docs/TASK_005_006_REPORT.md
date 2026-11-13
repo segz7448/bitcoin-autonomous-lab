@@ -1,5 +1,7 @@
 # TASK 005/006 engineering report: autonomous mining engine and AI mining agent
 
+> **Historical record: written 2026-11-13 against commit 41a979f in the original execution environment (disposable Linux x86_64 sandbox, Python 3.10, Bitcoin Core 32.1 regtest).** Preserved unchanged except this label; the current suite counts and correction status are in docs/CORRECTION_PRE_007.md.
+
 Date: 2026-11-13. Commit: 41a979f. Scope: brief phonemsg TASK 005 + TASK 006
 (autonomous Bitcoin mining engine and AI mining agent), regtest only.
 
