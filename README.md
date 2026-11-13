@@ -13,7 +13,9 @@ Everything is built regtest-first: all experiments run on Bitcoin Core's
 private regression-test network, and every claimed capability is backed by
 a reproducible test or a recorded live run. Nothing here is simulated.
 
-## Status: TASK 003 milestone complete (verified live)
+## Status: TASK 004 audit and hardening complete (verified live)
+
+See `docs/AUDIT_004.md` for the defects found and fixed. TASK 003 summary:
 
 An independent Bitcoin Proof-of-Work engine lives in `mining/pow/`
 (SHA-256, double SHA-256, strict 80-byte headers, compact targets with
@@ -119,9 +121,12 @@ python3 -m unittest discover -s tests -t .  # full test suite
 - **TASK 002 (done):** blockchain intelligence engine - monitoring service,
   transaction intelligence, block analysis with merkle verification,
   SQLite persistence, reorg handling, agent query interface.
-- **Next:** live ZMQ-based chain notifications, PoW template mining on
-  regtest (`mining/template_miner.py` is implemented and tested), then GPU
-  research and the autonomous agent layer.
+- **TASK 003 (done):** independent SHA-256 / header / target / nonce-search
+  Proof-of-Work engine, verified against Bitcoin Core.
+- **TASK 004 (done):** audit, hardening and retest - see `docs/AUDIT_004.md`
+  (target/merkle/coinbase consensus checks, sync robustness, RPC and storage
+  hardening, event-driven monitoring).
+- **Next:** GPU research and the autonomous agent layer.
 - **Not in scope yet:** mainnet mining, GPU mining (blocked until the Core
   integration is established and tested), paid infrastructure.
 

@@ -17,11 +17,18 @@ def sha256d_fast(data: bytes) -> bytes:
     return hashlib.sha256(hashlib.sha256(data).digest()).digest()
 
 
+_HEX = frozenset("0123456789abcdefABCDEF")
+
+
+def _strict_hash_hex(hex_hash: str) -> str:
+    """Exactly 64 hex digits: no prefix, sign, whitespace or underscores."""
+    if not isinstance(hex_hash, str) or len(hex_hash) != 64 or not set(hex_hash) <= _HEX:
+        raise ValueError("expected a 64-character hexadecimal hash")
+    return hex_hash
+
+
 def display_to_internal(hex_hash: str) -> bytes:
-    b = bytes.fromhex(hex_hash)
-    if len(b) != 32:
-        raise ValueError("expected 32-byte hash")
-    return b[::-1]
+    return bytes.fromhex(_strict_hash_hex(hex_hash))[::-1]
 
 
 def internal_to_display(raw: bytes) -> str:
@@ -30,33 +37,29 @@ def internal_to_display(raw: bytes) -> str:
     return raw[::-1].hex()
 
 
+# Target arithmetic has exactly one implementation: mining.pow.target, which
+# mirrors Bitcoin Core's SetCompact/GetCompact/CheckProofOfWork. The legacy
+# helpers below delegate to it (an earlier duplicate used `hash < target`
+# and skipped the overflow/zero/negative checks).
 def bits_to_target(bits: int) -> int:
-    """Decode Bitcoin's compact 'bits' representation to the 256-bit target."""
-    exponent = bits >> 24
-    mantissa = bits & 0x007FFFFF
-    if bits & 0x00800000:
-        raise ValueError("negative mantissa in compact target")
-    if exponent <= 3:
-        return mantissa >> (8 * (3 - exponent))
-    return mantissa << (8 * (exponent - 3))
+    """Decode compact nBits; ValueError if negative, zero or overflowing."""
+    from mining.pow.target import bits_to_target as _decode
+    return _decode(bits)
 
 
 def target_to_bits(target: int) -> int:
-    """Encode a 256-bit target into compact 'bits' representation."""
-    if target <= 0:
-        raise ValueError("target must be positive")
-    raw = target.to_bytes(32, "big").lstrip(b"\x00") or b"\x00"
-    if raw[0] & 0x80:
-        exponent = len(raw) + 1
-        mantissa = int.from_bytes(b"\x00" + raw[:2], "big")
-    else:
-        exponent = len(raw)
-        mantissa = int.from_bytes(raw[:3], "big")
-    return (exponent << 24) | mantissa
+    """Encode a positive 256-bit target as compact nBits (Core GetCompact)."""
+    from mining.pow.target import MAX_UINT256, encode_compact
+    if not isinstance(target, int) or not 0 < target <= MAX_UINT256:
+        raise ValueError("target must be an integer in [1, 2^256-1]")
+    return encode_compact(target)
 
 
 def hash_meets_target(digest_internal: bytes, target: int) -> bool:
-    return int.from_bytes(digest_internal, "little") < target
+    """Core's rule: the hash (little-endian integer) must be <= target."""
+    if len(digest_internal) != 32:
+        raise ValueError("digest must be exactly 32 bytes")
+    return int.from_bytes(digest_internal, "little") <= target
 
 
 @dataclass
@@ -107,19 +110,31 @@ class BlockHeader:
         )
 
 
-def merkle_root(txids_internal: list[bytes]) -> bytes:
-    """Compute the merkle root (internal byte order) of internal-order txids."""
+def merkle_root_checked(txids_internal: list[bytes]) -> tuple[bytes, bool]:
+    """Merkle root plus Core's `mutated` flag (CVE-2012-2459).
+
+    Duplicating the last transaction of an odd level yields the same root as
+    the honest block, so a block whose tree contains two identical sibling
+    hashes at any level is a malleated copy. Core's ComputeMerkleRoot flags
+    this and block validation rejects it.
+    """
     if not txids_internal:
         raise ValueError("merkle root needs at least one txid")
     layer = list(txids_internal)
+    mutated = False
     while len(layer) > 1:
+        for i in range(0, len(layer) - 1, 2):
+            if layer[i] == layer[i + 1]:
+                mutated = True
         if len(layer) % 2:
             layer.append(layer[-1])
-        layer = [
-            sha256d_fast(layer[i] + layer[i + 1])
-            for i in range(0, len(layer), 2)
-        ]
-    return layer[0]
+        layer = [sha256d_fast(layer[i] + layer[i + 1]) for i in range(0, len(layer), 2)]
+    return layer[0], mutated
+
+
+def merkle_root(txids_internal: list[bytes]) -> bytes:
+    """Compute the merkle root (internal byte order) of internal-order txids."""
+    return merkle_root_checked(txids_internal)[0]
 
 
 def encode_varint(n: int) -> bytes:

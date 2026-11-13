@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .block_header import BlockHeader, HEADER_SIZE
+from .block_header import BlockHeader
 from .target import (POW_LIMIT_MAINNET, check_proof_of_work, decode_compact,
                      digest_to_display, hash_to_int)
 
@@ -49,5 +49,6 @@ def validate_header(header, pow_limit: int = POW_LIMIT_MAINNET) -> PowValidation
         reason = "ok"
     ok = reason == "ok"
     # The boolean must agree with the single consensus predicate.
-    assert ok == check_proof_of_work(digest, header.bits, pow_limit)
+    if ok != check_proof_of_work(digest, header.bits, pow_limit):
+        raise RuntimeError("validator disagrees with the consensus predicate")
     return PowValidation(ok, reason, digest_to_display(digest), h_int, t.value, header.bits)

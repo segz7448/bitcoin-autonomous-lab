@@ -4,7 +4,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import struct
 
-from mining.pow.block_header import BlockHeader, HEADER_SIZE, hash_header_bytes
+from mining.pow.block_header import BlockHeader, hash_header_bytes
 from mining.pow.validator import validate_header
 from tests.pow_fixtures import GENESIS, MAINNET
 

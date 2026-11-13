@@ -12,10 +12,9 @@ from dataclasses import asdict, dataclass
 
 from .primitives import (
     BlockHeader,
-    bits_to_target,
     display_to_internal,
     internal_to_display,
-    merkle_root,
+    merkle_root_checked,
 )
 from .reader import BlockchainReader, BlockSummary
 
@@ -73,10 +72,26 @@ def verify_merkle_root(block: dict) -> bool:
     txids = block["tx"]
     if txids and isinstance(txids[0], dict):  # verbosity 2
         txids = [tx["txid"] for tx in txids]
-    computed = internal_to_display(
-        merkle_root([display_to_internal(t) for t in txids])
-    )
-    return computed == block["merkleroot"]
+    root, mutated = merkle_root_checked([display_to_internal(t) for t in txids])
+    # A mutated tree (duplicate sibling hashes, CVE-2012-2459) reproduces
+    # the honest root with a different tx list; Core rejects such blocks.
+    return (not mutated) and internal_to_display(root) == block["merkleroot"]
+
+
+def btc_to_sats(value) -> int:
+    """Exact satoshi count for a JSON-RPC BTC amount (8-decimal float/str)."""
+    from decimal import Decimal
+    return int((Decimal(str(value)) * COIN).to_integral_value())
+
+
+def coinbase_within_limit(coinbase_btc, subsidy_sats: int, fees_btc) -> bool:
+    """Consensus: coinbase output total <= subsidy + fees, to the satoshi.
+
+    fees_btc is None when fees are unknown; then only the subsidy is
+    provable and the comparison uses it alone.
+    """
+    limit = subsidy_sats + (btc_to_sats(fees_btc) if fees_btc is not None else 0)
+    return btc_to_sats(coinbase_btc) <= limit
 
 
 class BlockAnalyzer:
@@ -93,16 +108,17 @@ class BlockAnalyzer:
 
         txs = block["tx"]
         coinbase = txs[0]
-        coinbase_value = sum(out["value"] for out in coinbase["vout"])
+        coinbase_sats = sum(btc_to_sats(out["value"]) for out in coinbase["vout"])
+        coinbase_value = coinbase_sats / COIN
         # Core's verbosity-2 reply carries "fee" only for transactions whose
         # inputs it can resolve; report a total only when every non-coinbase
         # transaction has one (mempool/undo data available).
         fees = [tx.get("fee") for tx in txs[1:]]
         total_fees = (
-            round(sum(fees), 8) if all(f is not None for f in fees) else None
+            sum(btc_to_sats(f) for f in fees) / COIN if all(f is not None for f in fees) else None
         )
-        expected = expected_subsidy_sats(summary.height) / COIN
-        limit = expected + (total_fees or 0.0)
+        subsidy_sats = expected_subsidy_sats(summary.height)
+        expected = subsidy_sats / COIN
         return BlockAnalysis(
             height=summary.height,
             hash=summary.hash,
@@ -125,7 +141,7 @@ class BlockAnalyzer:
             total_fees_btc=total_fees,
             coinbase_value_btc=round(coinbase_value, 8),
             expected_subsidy_btc=expected,
-            coinbase_within_limit=(coinbase_value <= limit + 1e-8),
+            coinbase_within_limit=coinbase_within_limit(coinbase_value, subsidy_sats, total_fees),
         )
 
     def merkle_proof_check(self, block_hash: str) -> dict:

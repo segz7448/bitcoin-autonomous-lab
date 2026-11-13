@@ -4,7 +4,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from mining.pow.block_header import BlockHeader
 from mining.pow.nonce_search import NonceSearcher
-from mining.pow.target import POW_LIMIT_MAINNET, POW_LIMIT_REGTEST, BITS_REGTEST_LIMIT
+from mining.pow.target import POW_LIMIT_REGTEST
 from mining.pow.validator import validate_header
 from tests.pow_fixtures import MAINNET
 

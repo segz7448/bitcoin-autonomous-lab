@@ -111,9 +111,7 @@ def hash_to_int(digest: bytes) -> int:
 
 def display_hash_to_int(display_hex: str) -> int:
     """Integer value of a displayed (byte-reversed, big-endian) block hash."""
-    if len(display_hex) != 64:
-        raise ValueError("displayed hash must be 64 hex characters")
-    return int(display_hex, 16)
+    return int.from_bytes(display_to_digest(display_hex), "little")
 
 
 def digest_to_display(digest: bytes) -> str:
@@ -122,11 +120,19 @@ def digest_to_display(digest: bytes) -> str:
     return bytes(digest)[::-1].hex()
 
 
+_HEX_DIGITS = frozenset("0123456789abcdefABCDEF")
+
+
 def display_to_digest(display_hex: str) -> bytes:
-    raw = bytes.fromhex(display_hex)
-    if len(raw) != 32:
-        raise ValueError("displayed hash must be 32 bytes")
-    return raw[::-1]
+    """Parse a displayed hash: exactly 64 hex digits, nothing else.
+
+    int()/bytes.fromhex() alone also accept "0x" prefixes, signs, spaces and
+    underscores, which must never be read as a hash.
+    """
+    if not isinstance(display_hex, str) or len(display_hex) != 64 \
+            or not set(display_hex) <= _HEX_DIGITS:
+        raise ValueError("displayed hash must be exactly 64 hexadecimal characters")
+    return bytes.fromhex(display_hex)[::-1]
 
 
 def check_proof_of_work(digest: bytes, bits: int, pow_limit: int = POW_LIMIT_MAINNET) -> bool:

@@ -15,7 +15,6 @@ import argparse
 import hashlib
 import json
 import statistics
-import struct
 import time
 
 from .double_sha256 import double_sha256
@@ -99,7 +98,8 @@ def bench_nonce_search(n: int, repeats: int) -> dict:
     """Full nonce-engine loop (midstate + compare) over exactly n nonces; target=1 never hit."""
     def run():
         r = NonceSearcher().search(BENCH_HEADER, 1, 0, n)
-        assert r.hashes_attempted == n and r.status.value == "exhausted"
+        if r.hashes_attempted != n or r.status.value != "exhausted":
+            raise RuntimeError("benchmark search did not cover exactly n nonces")
     return _summarize("nonce search engine (midstate, target compare)",
                       [measure(run, n) for _ in range(repeats)])
 

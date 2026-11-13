@@ -21,7 +21,6 @@ class TestBenchmark(unittest.TestCase):
 
     def test_hash_counts_are_exact_and_deterministic(self):
         out = b.run_all(fast_n=2000, pure_n=50, repeats=3)
-        by = {r["name"].split(" (")[0] + r["name"][-8:]: r for r in out["results"]}
         for r in out["results"]:
             self.assertEqual(r["repeats"], 3)
             self.assertEqual(r["total_hashes"], 3 * r["hashes_per_run"])

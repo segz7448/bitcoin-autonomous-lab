@@ -14,12 +14,27 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any
 
 from blockchain.monitor import ChainMonitor
 from node.node_manager import NodeManager
 
 logger = logging.getLogger(__name__)
+
+
+MAX_BLOCKS_PER_CALL = 1000
+_HEX64 = frozenset("0123456789abcdefABCDEF")
+
+
+def _check_count(name: str, n, hi: int = MAX_BLOCKS_PER_CALL) -> int:
+    if not isinstance(n, int) or isinstance(n, bool) or not 1 <= n <= hi:
+        raise ValueError(f"{name} must be an integer in [1, {hi}], got {n!r}")
+    return n
+
+
+def _check_hash(name: str, v) -> str:
+    if not isinstance(v, str) or len(v) != 64 or not set(v) <= _HEX64:
+        raise ValueError(f"{name} must be 64 hexadecimal characters")
+    return v
 
 
 class AgentInterface:
@@ -84,6 +99,7 @@ class AgentInterface:
     def generate_blocks(self, nblocks: int, address: str | None = None) -> dict:
         """Generate regtest blocks and return per-block verification reports."""
         try:
+            _check_count("nblocks", nblocks)
             rpc = self.manager.client()
             if address is None:
                 if "bal" not in rpc.list_wallets():
@@ -103,8 +119,11 @@ class AgentInterface:
     def _engine(self, db_path: str | None = None):
         from blockchain.service import MonitoringService
         from blockchain.storage import ChainStore
+        # Connect to the node first: if it is down, no database handle is
+        # opened (and leaked) for a service that can never be returned.
+        rpc = self.manager.client()
         store = ChainStore(db_path or self._default_db_path())
-        return MonitoringService(self.manager.client(), store)
+        return MonitoringService(rpc, store)
 
     @staticmethod
     def _default_db_path() -> str:
@@ -146,6 +165,7 @@ class AgentInterface:
     def latest_blocks(self, n: int = 10) -> dict:
         try:
             from blockchain.reader import BlockchainReader
+            _check_count("n", n)
             reader = BlockchainReader(self.manager.client())
             blocks = reader.recent_blocks(n)
             return self._ok(count=len(blocks),
@@ -159,6 +179,7 @@ class AgentInterface:
         try:
             from blockchain.analysis import BlockAnalyzer
             from blockchain.reader import BlockchainReader
+            _check_hash("block_hash", block_hash)
             analyzer = BlockAnalyzer(BlockchainReader(self.manager.client()))
             analysis = analyzer.analyze(block_hash)
             return self._ok(analysis=analysis.to_dict())
@@ -197,6 +218,7 @@ class AgentInterface:
         """Decoded transaction inspection, or an explicit unavailable result."""
         try:
             from blockchain.transactions import TransactionIntelligence
+            _check_hash("txid", txid)
             txs = TransactionIntelligence(self.manager.client())
             return self._ok(transaction=txs.get_transaction(txid).to_dict())
         except Exception as exc:

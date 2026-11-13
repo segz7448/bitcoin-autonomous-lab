@@ -42,7 +42,7 @@ bitcoin-autonomous-lab/
     miner.py         CPU nonce scanner + verify_pow.
     block.py         BIP34/BIP141 coinbase construction, block assembly.
     template_miner.py getblocktemplate -> build -> mine -> submitblock.
-    benchmark.py     Bounded hashrate measurement.
+    pow/             Independent SHA-256 PoW engine (TASK 003), incl. benchmark.py
   gpu/           GPU acceleration research. Empty by design (TASK 001
                  restriction); see gpu/README for the research plan.
   agent/         Autonomous agent orchestration.

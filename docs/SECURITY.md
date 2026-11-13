@@ -15,6 +15,15 @@
   wallet (`bal`) solely so `generatetoaddress` has a payout address. It
   holds valueless test coins and is deleted with the temporary datadir.
 
+## RPC client rules (TASK 004)
+
+- Only `http`/`https` URLs. Plain `http` to a non-loopback host is refused
+  (cookie/basic-auth would travel in cleartext) unless `allow_remote=True` or
+  `BAL_RPC_ALLOW_REMOTE=1` is set explicitly.
+- Replies are size-capped, must be JSON-RPC objects with the matching `id`,
+  and anything else raises `RPCConnectionError` instead of leaking parser errors.
+- The SQLite store is created `0600`.
+
 ## Network exposure
 
 The managed node binds its RPC interface to `127.0.0.1` only, on regtest,

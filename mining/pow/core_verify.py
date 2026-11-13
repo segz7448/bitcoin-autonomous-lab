@@ -7,7 +7,6 @@ Core reports.
 
 from __future__ import annotations
 
-import time
 
 from .block_header import BlockHeader
 from .difficulty import block_work, difficulty_from_bits
@@ -63,12 +62,6 @@ def verify_chain(rpc, pow_limit: int | None = None) -> dict:
             "all_ok": all(r["all_ok"] for r in rows)}
 
 
-def core_verdict_on_header_pow(rpc, block_hex: str) -> str | None:
-    """Ask Core to validate a full block via submitblock; returns Core's reject reason
-    (None means accepted). Used to confirm invalid-PoW rejection and valid acceptance."""
-    return rpc.call("submitblock", block_hex)
-
-
 def tamper_to_invalid_pow(block_hex: str, pow_limit: int) -> tuple[str, dict]:
     """Return (block_hex with a nonce that fails PoW per OUR validator, our verdict)."""
     raw = bytearray(bytes.fromhex(block_hex))
@@ -88,7 +81,6 @@ def mine_block_with_engine(rpc, payout_script: bytes, pow_limit: int) -> dict:
     Reuses the lab's coinbase/block assembly (mining.block / template_miner)
     and replaces only the hashing/search with this engine.
     """
-    from blockchain.primitives import BlockHeader as OldHeader  # noqa: F401
     from mining.block import assemble_block
     from mining.template_miner import build_block_from_template, require_regtest
 
@@ -103,7 +95,8 @@ def mine_block_with_engine(rpc, payout_script: bytes, pow_limit: int) -> dict:
     solved = BlockHeader.deserialize(candidate).with_nonce(result.nonce)
     old_header.nonce = result.nonce
     block_hex = assemble_block(old_header, txs).hex()
-    assert block_hex[:HEADER_HEX_LEN] == solved.hex()
+    if block_hex[:HEADER_HEX_LEN] != solved.hex():
+        raise RuntimeError("assembled block does not start with the solved header")
     reject = rpc.submit_block(block_hex)
     height = template["height"]
     core_hash = rpc.get_block_hash(height) if reject is None else None

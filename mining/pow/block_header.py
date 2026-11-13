@@ -89,7 +89,8 @@ class BlockHeader:
     def serialize(self) -> bytes:
         raw = struct.pack(_FMT, self.version, self.prev_hash, self.merkle_root,
                           self.time, self.bits, self.nonce)
-        assert len(raw) == HEADER_SIZE
+        if len(raw) != HEADER_SIZE:  # cannot happen with _FMT; guards edits, survives python -O
+            raise RuntimeError(f"serialized header is {len(raw)} bytes, expected {HEADER_SIZE}")
         return raw
 
     def hex(self) -> str:

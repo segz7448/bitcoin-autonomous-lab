@@ -26,13 +26,10 @@ Usage:
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import sys
 import tempfile
-import threading
-import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -84,7 +81,7 @@ def main() -> int:
     # Mature the coinbase (100 confirmations) so the wallet can spend.
     rpc.generate_to_address(101, address)
     height = rpc.get_block_count()
-    hashes = rpc.generate_to_address(5, address)
+    rpc.generate_to_address(5, address)
     new_height = rpc.get_block_count()
     ok &= check("height change detected after generatetoaddress",
                 new_height == height + 5,
@@ -204,7 +201,7 @@ def main() -> int:
     rpc.invalidate_block(forked)
     # Fresh address: the competing branch must not reproduce the
     # invalidated block's hash.
-    competing = rpc.generate_to_address(2, rpc.get_new_address())
+    rpc.generate_to_address(2, rpc.get_new_address())
     report = service.sync_once()
     ok &= check("reorg detected with orphaned block recorded",
                 report.reorg_detected and forked in report.orphaned_blocks,

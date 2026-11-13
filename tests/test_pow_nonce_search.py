@@ -7,8 +7,8 @@ import signal, threading, time
 from mining.pow.block_header import BlockHeader
 from mining.pow.double_sha256 import double_sha256
 from mining.pow.nonce_search import (NONCE_SPACE, NonceSearcher, SearchStatus, graceful_shutdown)
-from mining.pow.target import (BITS_MAINNET_LIMIT, BITS_REGTEST_LIMIT, POW_LIMIT_MAINNET,
-                               POW_LIMIT_REGTEST, bits_to_target, check_proof_of_work, hash_to_int)
+from mining.pow.target import (BITS_REGTEST_LIMIT, POW_LIMIT_MAINNET,
+                               POW_LIMIT_REGTEST, check_proof_of_work, hash_to_int)
 from mining.pow.validator import validate_header
 from tests.pow_fixtures import GENESIS, MAINNET
 
@@ -159,7 +159,9 @@ class TestExtraNonceVariants(unittest.TestCase):
         self.assertEqual((r.status, r.hashes_attempted), (SearchStatus.EXHAUSTED, 1200))
         r = s.search_variants(small, 1, max_hashes=2500, start_nonce=0, end_nonce=1000)
         self.assertEqual((r.status, r.hashes_attempted), (SearchStatus.LIMIT, 2500))
-        self.assertEqual(s.search_variants([], 1).status, SearchStatus.EXHAUSTED)
+        # An empty variant list searched nothing; it must not claim exhaustion.
+        with self.assertRaises(ValueError):
+            s.search_variants([], 1)
 
 
 if __name__ == "__main__":

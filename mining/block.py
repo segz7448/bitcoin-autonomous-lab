@@ -1,8 +1,7 @@
 """Coinbase transaction construction and block assembly.
 
 Shared primitives (headers, targets, merkle roots, script pushes) live in
-blockchain.primitives and are re-exported here so mining code has a single
-import surface. Consensus-relevant details:
+blockchain.primitives; import them from there. Consensus-relevant details:
 
   * BIP34: the coinbase scriptSig starts with the block height encoded
     exactly as CScript encodes it (see script_num_push).
@@ -16,11 +15,9 @@ from __future__ import annotations
 import struct
 from dataclasses import dataclass
 
-from blockchain.primitives import (  # noqa: F401  (re-exported)
-    WITNESS_COMMITMENT_HEADER, BlockHeader, bits_to_target,
-    display_to_internal, encode_varint, hash_meets_target,
-    internal_to_display, merkle_root, push_data, script_num_push,
-    sha256d_fast, target_to_bits,
+from blockchain.primitives import (
+    WITNESS_COMMITMENT_HEADER, BlockHeader, encode_varint, push_data,
+    script_num_push, sha256d_fast,
 )
 
 

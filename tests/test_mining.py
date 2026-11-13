@@ -6,9 +6,10 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from mining.block import (  # noqa: E402
-    BlockHeader, build_coinbase_tx, internal_to_display, merkle_root,
+from blockchain.primitives import (  # noqa: E402
+    BlockHeader, internal_to_display, merkle_root,
 )
+from mining.block import build_coinbase_tx  # noqa: E402
 from mining.miner import mine_header, verify_pow  # noqa: E402
 
 # Regtest genesis difficulty: the largest target the consensus rules allow

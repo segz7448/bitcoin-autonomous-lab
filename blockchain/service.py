@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import logging
 import threading
-import time
 import urllib.error
 from dataclasses import asdict, dataclass, field
 
@@ -44,8 +43,8 @@ class SyncReport:
         return asdict(self)
 
 
-class NodeUnavailable(Exception):
-    pass
+class ChainMovedError(Exception):
+    """The node's chain changed while a sync walk was in progress."""
 
 
 class MonitoringService:
@@ -154,12 +153,37 @@ class MonitoringService:
                                    fork_height, len(orphaned))
                     synced_height = fork_height - 1
 
-        # Walk forward and store every new block.
-        for height in range(synced_height + 1, node_height + 1):
-            summary = self.reader.block_at_height(height)
-            self.store.record_block(summary)
-            report.new_blocks.append(summary.hash)
-            self._emit_new_block(summary)
+        # Walk forward and store every new block. Each block must link to the
+        # block stored just before it: if the chain moves while we walk, stop
+        # and let the next cycle's reorg check reconcile instead of storing
+        # blocks from two different branches as one chain.
+        try:
+            expected_parent = (self.store.block_hash_at(synced_height)
+                               if synced_height >= 0 else None)
+            for height in range(synced_height + 1, node_height + 1):
+                summary = self.reader.block_at_height(height)
+                if height > 0 and expected_parent is not None \
+                        and summary.prev_hash != expected_parent:
+                    raise ChainMovedError(
+                        f"block {height} {summary.hash} does not extend stored "
+                        f"{expected_parent}; chain changed during sync")
+                self.store.record_block(summary)
+                expected_parent = summary.hash
+                report.new_blocks.append(summary.hash)
+                self._emit_new_block(summary)
+        except (urllib.error.URLError, OSError, TimeoutError, RPCError, ChainMovedError) as exc:
+            self._failures += 1
+            logger.warning("sync interrupted at %d new block(s): %s",
+                           len(report.new_blocks), exc)
+            self.store.record_event("sync_interrupted", str(exc))
+            if report.new_blocks:
+                # Persist progress so the next cycle resumes after the last good block.
+                self.store.set_sync(synced_height + len(report.new_blocks),
+                                    report.new_blocks[-1])
+            report.ok = False
+            report.error = str(exc)
+            report.consecutive_failures = self._failures
+            return report
 
         if report.new_blocks or report.reorg_detected or sync is None:
             tip_hash = self.reader.block_hash_at(node_height) \
@@ -190,7 +214,17 @@ class MonitoringService:
         backoff = self.poll_interval
         cycles = 0
         while not self._stop.is_set():
-            report = self.sync_once()
+            try:
+                report = self.sync_once()
+            except Exception as exc:  # never let one bad reply kill the monitor
+                logger.exception("unexpected error in sync cycle")
+                self._failures += 1
+                try:
+                    self.store.record_event("sync_exception", repr(exc))
+                except Exception:
+                    logger.exception("could not record sync_exception event")
+                report = SyncReport(ok=False, error=repr(exc),
+                                    consecutive_failures=self._failures)
             cycles += 1
             if report.ok:
                 backoff = self.poll_interval
@@ -199,6 +233,42 @@ class MonitoringService:
             if iterations is not None and cycles >= iterations:
                 return
             self._stop.wait(backoff)
+
+    def run_event_driven(self, wait_ms: int = 5000, iterations: int | None = None) -> None:
+        """Event-driven monitoring: sleep inside the node until the tip changes.
+
+        Uses Core's waitfornewblock long-poll, so an idle chain costs one
+        blocked request per wait_ms instead of a poll every poll_interval, and
+        a new block is seen as soon as the node connects it. Every wake-up
+        still runs the same sync_once() (reorg check, parent-link check,
+        persistence), so correctness does not depend on the notification.
+        On any RPC failure it falls back to the same exponential backoff as
+        run().
+        """
+        backoff = self.poll_interval
+        cycles = 0
+        while not self._stop.is_set():
+            try:
+                report = self.sync_once()
+            except Exception as exc:
+                logger.exception("unexpected error in sync cycle")
+                self._failures += 1
+                report = SyncReport(ok=False, error=repr(exc),
+                                    consecutive_failures=self._failures)
+            cycles += 1
+            if iterations is not None and cycles >= iterations:
+                return
+            if not report.ok:
+                backoff = min(self.max_backoff, backoff * 2)
+                self._stop.wait(backoff)
+                continue
+            backoff = self.poll_interval
+            try:
+                self.rpc.wait_for_new_block(wait_ms)
+            except (urllib.error.URLError, OSError, TimeoutError, RPCError) as exc:
+                self._failures += 1
+                logger.warning("wait-for-block failed: %s", exc)
+                self._stop.wait(min(self.max_backoff, self.poll_interval * 2))
 
     def stop(self) -> None:
         self._stop.set()
@@ -223,7 +293,6 @@ class MonitoringService:
     def record_block_transactions(self, block_hash: str) -> int:
         """Store summaries of every transaction in a block. Returns count."""
         block = self.reader.block_with_txs(block_hash)
-        height = block["height"]
         for tx in block["tx"]:
             raw = {
                 "vin": tx["vin"], "vout": tx["vout"],

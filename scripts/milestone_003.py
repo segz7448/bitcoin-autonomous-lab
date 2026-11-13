@@ -17,18 +17,17 @@ import shutil
 import sys
 import tempfile
 import threading
-import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from mining.pow import benchmark
 from mining.pow.block_header import BlockHeader
 from mining.pow.core_verify import (mine_block_with_engine, tamper_to_invalid_pow, verify_chain)
-from mining.pow.double_sha256 import double_sha256, double_sha256_hex
+from mining.pow.double_sha256 import double_sha256_hex
 from mining.pow.nonce_search import NONCE_SPACE, NonceSearcher, SearchStatus
 from mining.pow.sha256 import sha256_hex
 from mining.pow.target import (BITS_MAINNET_LIMIT, POW_LIMIT_MAINNET, POW_LIMIT_REGTEST,
-                               bits_to_target, decode_compact)
+                               decode_compact)
 from mining.pow.validator import validate_header
 from node.node_manager import NodeConfig, NodeManager
 from tests.pow_fixtures import MAINNET

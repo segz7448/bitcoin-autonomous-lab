@@ -9,7 +9,9 @@ engine keeps an auditable record of what the chain did.
 
 from __future__ import annotations
 
+import os
 import sqlite3
+import threading
 import time
 from pathlib import Path
 
@@ -76,14 +78,65 @@ CREATE TABLE IF NOT EXISTS monitor_events (
 """
 
 
+class _Rows:
+    """Fully fetched result of one statement (safe to read after the lock is released)."""
+
+    def __init__(self, rows):
+        self._rows = rows
+
+    def fetchone(self):
+        return self._rows[0] if self._rows else None
+
+    def fetchall(self):
+        return list(self._rows)
+
+
+class _LockedDB:
+    """Serializes all access to one sqlite3 connection across threads.
+
+    The monitoring service runs in a background thread while dashboards and
+    the agent interface read the same store from other threads; a bare
+    sqlite3 connection raises ProgrammingError for that. Statements execute
+    under one RLock and results are fetched before it is released.
+    """
+
+    def __init__(self, conn: sqlite3.Connection):
+        self._conn = conn
+        self._lock = threading.RLock()
+
+    def execute(self, sql, params=()):
+        with self._lock:
+            return _Rows(self._conn.execute(sql, params).fetchall())
+
+    def executescript(self, script):
+        with self._lock:
+            self._conn.executescript(script)
+
+    def commit(self):
+        with self._lock:
+            self._conn.commit()
+
+    def close(self):
+        with self._lock:
+            self._conn.close()
+
+
 class ChainStore:
     """SQLite-backed record of everything the monitor has processed."""
 
     def __init__(self, path: str | Path):
         self.path = str(path)
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
-        self.db = sqlite3.connect(self.path)
-        self.db.row_factory = sqlite3.Row
+        # Create the file private (0600) before SQLite opens it; WAL/SHM
+        # sidecar files inherit its mode.
+        if not os.path.exists(self.path):
+            os.close(os.open(self.path, os.O_CREAT | os.O_WRONLY, 0o600))
+        conn = sqlite3.connect(self.path, timeout=10.0, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        self.db = _LockedDB(conn)
+        self.db.execute("PRAGMA busy_timeout = 10000")
+        self.db.execute("PRAGMA journal_mode = WAL")
+        self.db.execute("PRAGMA synchronous = NORMAL")
         self.db.executescript(SCHEMA)
         self.db.commit()
 

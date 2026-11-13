@@ -15,11 +15,12 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from mining.block import (  # noqa: E402
-    BlockHeader, bits_to_target, build_coinbase_tx, display_to_internal,
+from blockchain.primitives import (  # noqa: E402
+    BlockHeader, bits_to_target, display_to_internal,
     encode_varint, internal_to_display, merkle_root, push_data, script_num_push,
     sha256d_fast, target_to_bits,
 )
+from mining.block import build_coinbase_tx  # noqa: E402
 from mining.miner import scan_nonces  # noqa: E402
 from mining.template_miner import (  # noqa: E402
     build_block_from_template, mine_one_block, require_regtest,

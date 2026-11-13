@@ -17,7 +17,11 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import ipaddress
 import os
+import threading
+import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_REGTEST_PORT = 18443
 DEFAULT_TIMEOUT = 120.0
+MAX_RESPONSE_BYTES = 256 * 1024 * 1024  # a verbosity-2 block is far smaller
 
 
 class RPCError(Exception):
@@ -35,6 +40,23 @@ class RPCError(Exception):
         super().__init__(f"RPC error {code}: {message}")
         self.code = code
         self.message = message
+
+
+class RPCConnectionError(urllib.error.URLError):
+    """The endpoint answered, but not with a well-formed JSON-RPC reply.
+
+    A URLError subclass so existing "node unreachable" handling (backoff,
+    reconnect) also covers truncated, non-JSON or oversized replies.
+    """
+
+
+def _is_loopback(host: str) -> bool:
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host.strip("[]")).is_loopback
+    except ValueError:
+        return False
 
 
 @dataclass
@@ -47,6 +69,7 @@ class RPCConfig:
     user: str | None = None
     password: str | None = None
     timeout: float = DEFAULT_TIMEOUT
+    allow_remote: bool = False
 
     @property
     def url(self) -> str:
@@ -68,6 +91,7 @@ class RPCConfig:
             user=env.get("BAL_RPC_USER") or None,
             password=env.get("BAL_RPC_PASSWORD") or None,
             timeout=float(env.get("BAL_RPC_TIMEOUT", DEFAULT_TIMEOUT)),
+            allow_remote=env.get("BAL_RPC_ALLOW_REMOTE", "") == "1",
         )
 
     def validate(self) -> None:
@@ -82,9 +106,19 @@ class BitcoinRPC:
 
     def __init__(self, url: str, cookie_path: str | None = None,
                  user: str | None = None, password: str | None = None,
-                 timeout: float = DEFAULT_TIMEOUT):
+                 timeout: float = DEFAULT_TIMEOUT, allow_remote: bool = False,
+                 max_response_bytes: int = MAX_RESPONSE_BYTES):
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            raise ValueError(f"RPC url must be http(s) with a host, got {url!r}")
+        if parsed.scheme == "http" and not allow_remote and not _is_loopback(parsed.hostname):
+            # Basic-auth credentials would cross the network in cleartext.
+            raise ValueError(
+                f"refusing to send RPC credentials over plain http to non-loopback "
+                f"host {parsed.hostname!r}; use https or pass allow_remote=True")
         self.url = url
         self.timeout = timeout
+        self.max_response_bytes = max_response_bytes
         if cookie_path:
             creds = Path(cookie_path).read_text().strip()
             token = base64.b64encode(creds.encode()).decode()
@@ -94,18 +128,21 @@ class BitcoinRPC:
             raise ValueError("cookie_path or user/password required")
         self._auth = f"Basic {token}"
         self._id = 0
+        self._id_lock = threading.Lock()
 
     @classmethod
     def from_config(cls, config: RPCConfig) -> "BitcoinRPC":
         config.validate()
         return cls(config.url, cookie_path=config.cookie_path,
                    user=config.user, password=config.password,
-                   timeout=config.timeout)
+                   timeout=config.timeout, allow_remote=config.allow_remote)
 
-    def call(self, method: str, *params):
-        self._id += 1
+    def call(self, method: str, *params, timeout: float | None = None):
+        with self._id_lock:  # one client is shared by the monitor thread and its callers
+            self._id += 1
+            req_id = self._id
         body = json.dumps({
-            "jsonrpc": "1.0", "id": self._id, "method": method,
+            "jsonrpc": "1.0", "id": req_id, "method": method,
             "params": list(params),
         }).encode()
         req = urllib.request.Request(
@@ -116,24 +153,51 @@ class BitcoinRPC:
         logger.debug("rpc %s(%s)", method,
                      ", ".join(json.dumps(p)[:80] for p in params))
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                reply = json.loads(resp.read())
+            with urllib.request.urlopen(req, timeout=timeout or self.timeout) as resp:  # nosec B310 - scheme validated in __init__
+                raw = resp.read(self.max_response_bytes + 1)
+            status_error = None
         except urllib.error.HTTPError as exc:
             # Core answers RPC-level errors with HTTP 4xx/5xx plus a JSON
             # error body; surface the JSON-RPC error, not the HTTP status.
-            try:
-                reply = json.loads(exc.read())
-            except Exception:
-                raise exc
-            if reply.get("error"):
-                raise RPCError(reply["error"]["code"],
-                               reply["error"]["message"]) from exc
-            raise
-        if reply.get("error"):
-            raise RPCError(reply["error"]["code"], reply["error"]["message"])
+            raw = exc.read(self.max_response_bytes + 1)
+            status_error = exc
+        if len(raw) > self.max_response_bytes:
+            raise RPCConnectionError(f"RPC reply to {method} exceeds {self.max_response_bytes} bytes")
+        try:
+            reply = json.loads(raw)
+        except ValueError as exc:
+            if status_error is not None:
+                raise status_error from exc
+            raise RPCConnectionError(f"RPC reply to {method} is not JSON") from exc
+        if not isinstance(reply, dict):
+            raise RPCConnectionError(f"RPC reply to {method} is not a JSON object")
+        err = reply.get("error")
+        if err:
+            if not isinstance(err, dict) or "code" not in err or "message" not in err:
+                raise RPCConnectionError(f"RPC reply to {method} has a malformed error object")
+            raise RPCError(err["code"], err["message"])
+        if status_error is not None:
+            raise status_error
+        if reply.get("id") != req_id:
+            raise RPCConnectionError(
+                f"RPC reply id {reply.get('id')!r} does not match request {req_id}")
+        if "result" not in reply:
+            raise RPCConnectionError(f"RPC reply to {method} has no result")
         return reply["result"]
 
     # --- Blockchain queries -------------------------------------------------
+    def wait_for_new_block(self, timeout_ms: int = 30_000) -> dict:
+        """Long-poll: block until the chain tip changes or timeout_ms passes.
+
+        Returns {"hash", "height"} of the tip at return time (Core's
+        waitfornewblock). This is an event-driven wake-up using only the
+        standard JSON-RPC interface: no polling loop, no extra dependency.
+        """
+        if not isinstance(timeout_ms, int) or timeout_ms < 0:
+            raise ValueError("timeout_ms must be a non-negative integer")
+        return self.call("waitfornewblock", timeout_ms,
+                         timeout=timeout_ms / 1000.0 + 10.0)
+
     def get_blockchain_info(self) -> dict:
         return self.call("getblockchaininfo")
 

@@ -25,7 +25,7 @@ import struct
 import threading
 import time
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Callable, Iterable, Optional
 
 from .block_header import HEADER_SIZE
@@ -98,6 +98,10 @@ def graceful_shutdown(stop_event: threading.Event):
             signal.signal(sig, old)
 
 
+class PoWInternalError(RuntimeError):
+    """The search and the consensus predicate disagree (a bug, never expected)."""
+
+
 class NonceSearcher:
     """Searches nonces for a header whose double-SHA-256 satisfies a target."""
 
@@ -131,6 +135,10 @@ class NonceSearcher:
         if not (isinstance(start_nonce, int) and isinstance(end_nonce, int)
                 and 0 <= start_nonce <= end_nonce <= NONCE_SPACE):
             raise ValueError("require 0 <= start_nonce <= end_nonce <= 2^32")
+        if max_hashes is not None and (not isinstance(max_hashes, int) or max_hashes < 0):
+            raise ValueError("max_hashes must be a non-negative integer")
+        if max_seconds is not None and not max_seconds >= 0:
+            raise ValueError("max_seconds must be >= 0")
         header = bytes(header)
         tail_fixed = header[64:76]
         mid = hashlib.sha256(header[:64])  # midstate over the first 64 bytes
@@ -188,7 +196,7 @@ class NonceSearcher:
         # Defence in depth: re-verify any winner with the consensus check
         # using the independent code path before reporting success.
         if result.found and not check_proof_of_work(result.digest, bits, pow_limit):
-            raise AssertionError("internal error: winner failed consensus PoW check")
+            raise PoWInternalError("winner failed the consensus PoW check")
         return result
 
     # -- extra-nonce / varying header ----------------------------------------
@@ -203,6 +211,9 @@ class NonceSearcher:
         with the winning variant label, EXHAUSTED when every variant's
         nonce space is spent, or INTERRUPTED/LIMIT.
         """
+        variants = list(variants)
+        if not variants:
+            raise ValueError("search_variants needs at least one (label, header) variant")
         started = self._clock()
         total = 0
         last = None
@@ -212,7 +223,7 @@ class NonceSearcher:
             if (remaining_s is not None and remaining_s <= 0) or \
                     (remaining_h is not None and remaining_h <= 0):
                 return SearchResult(SearchStatus.LIMIT, total, self._clock() - started,
-                                    0, 0, label=last)
+                                    start_nonce, start_nonce, label=last)
             r = self.search(header, target, start_nonce, end_nonce, max_seconds=remaining_s,
                             max_hashes=remaining_h, label=label)
             total += r.hashes_attempted
@@ -222,4 +233,4 @@ class NonceSearcher:
                 r.elapsed = self._clock() - started
                 return r
         return SearchResult(SearchStatus.EXHAUSTED, total, self._clock() - started,
-                            0, NONCE_SPACE, label=last)
+                            start_nonce, end_nonce, label=last)

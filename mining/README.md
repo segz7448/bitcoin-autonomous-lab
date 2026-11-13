@@ -9,7 +9,6 @@ Proof-of-work research modules. Contents:
 - `template_miner.py` - end-to-end regtest flow: getblocktemplate, build,
   mine, submitblock, confirm acceptance. Fails closed on template shapes it
   does not handle and refuses any chain other than regtest.
-- `benchmark.py` - bounded hashrate measurement for the two hashing paths.
 
 Scope: these modules are exercised on Bitcoin Core's private regtest network
 only. TASK 001's milestone uses Core's own `generatetoaddress` for block

@@ -1,19 +1,19 @@
-"""Nonce-scanning CPU miner.
+"""Nonce-scanning CPU miner (thin layer over the PoW engine).
 
-The hot loop hashes 80-byte block headers with double SHA-256 and compares
-each digest against the target. hashlib's sha256 is OpenSSL-backed C code, so
-this is the fast path; the pure-Python implementation in blockchain.sha256
-exists for verification, not throughput.
+The search itself lives in mining.pow.nonce_search (midstate, exact hash
+counts, bounded range, interruption). This module only adapts it to the
+older (prefix, bits) call shape, so there is a single consensus-correct
+nonce loop in the code base: the hash must be <= target, the target must be
+valid (not negative/zero/overflowing), and the nonce range never wraps.
 """
 
 from __future__ import annotations
 
-import hashlib
-import struct
-import time
 from dataclasses import dataclass
 
-from blockchain.primitives import BlockHeader, bits_to_target
+from blockchain.primitives import BlockHeader
+from mining.pow.nonce_search import NONCE_SPACE, NonceSearcher
+from mining.pow.target import POW_LIMIT_REGTEST, bits_to_target
 
 
 @dataclass
@@ -32,52 +32,41 @@ def scan_nonces(
     header_prefix: bytes,
     bits: int,
     start_nonce: int = 0,
-    max_nonces: int = 0x100000000,
+    max_nonces: int = NONCE_SPACE,
     max_seconds: float | None = None,
-    progress_every: int = 1_000_000,
 ) -> MiningResult:
-    """Scan nonces for a header whose double-SHA-256 meets the target.
+    """Scan nonces for a header whose double-SHA-256 is <= the nBits target.
 
     header_prefix is the serialized header up to (excluding) the 4-byte nonce.
-    Returns when a nonce is found, the range is exhausted, or max_seconds
-    elapses.
+    Stops when a nonce is found, the range (clamped at 2^32) is exhausted, or
+    max_seconds elapses (0 means "stop immediately", not "no limit").
     """
     if len(header_prefix) != 76:
         raise ValueError("header prefix must be the first 76 header bytes")
-    target = bits_to_target(bits)
-    sha256 = hashlib.sha256
-    start = time.monotonic()
-    deadline = start + max_seconds if max_seconds else None
-    hashes = 0
-    nonce = start_nonce
-    end = min(start_nonce + max_nonces, 0x100000000)
-    while nonce < end:
-        digest = sha256(sha256(header_prefix + struct.pack("<I", nonce)).digest()).digest()
-        hashes += 1
-        if int.from_bytes(digest, "little") < target:
-            return MiningResult(True, nonce, hashes, time.monotonic() - start)
-        nonce += 1
-        if hashes % progress_every == 0 and deadline and time.monotonic() > deadline:
-            break
-    # Final deadline check for small loops that never hit progress_every.
-    if deadline and time.monotonic() > deadline:
-        return MiningResult(False, None, hashes, time.monotonic() - start)
-    return MiningResult(False, None, hashes, time.monotonic() - start)
+    if not isinstance(start_nonce, int) or not 0 <= start_nonce <= NONCE_SPACE:
+        raise ValueError("start_nonce must be in [0, 2^32]")
+    if not isinstance(max_nonces, int) or max_nonces < 0:
+        raise ValueError("max_nonces must be a non-negative integer")
+    target = bits_to_target(bits)  # ValueError on negative/zero/overflow nBits
+    end = min(start_nonce + max_nonces, NONCE_SPACE)
+    r = NonceSearcher().search(header_prefix + b"\x00\x00\x00\x00", target,
+                               start_nonce, end, max_seconds=max_seconds)
+    return MiningResult(r.found, r.nonce, r.hashes_attempted, r.elapsed)
 
 
 def mine_header(
     header: BlockHeader,
     max_seconds: float | None = None,
-    max_nonces: int = 0x100000000,
+    max_nonces: int = NONCE_SPACE,
 ) -> MiningResult:
     """Mine an existing header (all fields fixed except nonce)."""
-    prefix = header.serialize()[:76]
-    return scan_nonces(
-        prefix, header.bits, start_nonce=header.nonce,
-        max_nonces=max_nonces, max_seconds=max_seconds,
-    )
+    return scan_nonces(header.serialize()[:76], header.bits, start_nonce=header.nonce,
+                       max_nonces=max_nonces, max_seconds=max_seconds)
 
 
 def verify_pow(header: BlockHeader) -> bool:
     """Independent proof-of-work check for a (mined) header."""
     return header.meets_target()
+
+
+__all__ = ["MiningResult", "scan_nonces", "mine_header", "verify_pow", "POW_LIMIT_REGTEST"]

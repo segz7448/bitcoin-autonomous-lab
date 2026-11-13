@@ -11,8 +11,7 @@ re-run - the monitor does not take the node's word for its own data.
 from __future__ import annotations
 
 import logging
-import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 
 from .primitives import BlockHeader
 
@@ -106,17 +105,6 @@ class ChainMonitor:
 
     def verify_tip(self) -> BlockVerification:
         return self.verify_block(self.rpc.get_best_block_hash())
-
-    def wait_for_height(self, height: int, timeout: float = 60.0,
-                        poll_s: float = 0.25) -> int:
-        """Block until the node's block count reaches height."""
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            count = self.rpc.get_block_count()
-            if count >= height:
-                return count
-            time.sleep(poll_s)
-        raise TimeoutError(f"height {height} not reached within {timeout:.0f}s")
 
     # --- regtest block generation -------------------------------------------
     def generate_and_verify(self, nblocks: int, address: str) -> list[BlockVerification]:
