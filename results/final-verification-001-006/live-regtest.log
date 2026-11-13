@@ -1,0 +1,51 @@
+node ready: chain=regtest height=0
+
+== pre-mining diagnostics ==
+  core_connectivity: True
+  chain: regtest
+  regtest_only: True
+  blocks: 0
+  headers: 0
+  synchronized: True
+  mining_work_available: True
+  next_height: 1
+  backend: cpu
+  backend_fallback_reason: CUDA unavailable or self-test failed
+  backend_benchmark_hs: 335623.3
+  engine_ready: True
+
+== starting autonomous agent for 3 cycles ==
+  start: {'ok': True, 'state': 'running', 'backend': 'cpu'}
+  cycle 1: accepted height=1 hash=1c2d1383e42aa34e33b915a52005bd7146928c5f32a9aea13a18fdbd6226a46a nonce=0 hashes=65536 (508291.2 H/s)
+  cycle 2: accepted height=2 hash=12cb2d8344727e6d377ac008db14925a484f51593f0a3688c1aae67e8ae7a6c0 nonce=1 hashes=131072 (487422.2 H/s)
+  cycle 3: accepted height=3 hash=6f0436d563ce918df0aa25cb0bba96511eca4f6ae12edba95fe57b2e75c21019 nonce=0 hashes=131072 (512300.1 H/s)
+
+== blockchain status after autonomous mining ==
+  blocks: 3
+  best block: 6f0436d563ce918df0aa25cb0bba96511eca4f6ae12edba95fe57b2e75c21019
+
+== persistent mining statistics ==
+  cycles: 3  accepted: 3
+  total hashes: 327680  avg hashrate: 479258.8 H/s
+  total coinbase value: 15000000000 sats (regtest, worthless)
+  session f1198542: height 3 accepted=1 backend=cpu hashes=131072 peak=537525.5 H/s
+  session 2b4c74ce: height 2 accepted=1 backend=cpu hashes=131072 peak=511141.9 H/s
+  session aed03abd: height 1 accepted=1 backend=cpu hashes=65536 peak=536814.7 H/s
+
+== agent decisions ==
+  [backend-selected] backend=cpu (requested auto); fallback_reason=CUDA unavailable or self-test failed; measured 335623 H/s
+  [mining-started] limits: max_cycles=3, max_seconds_per_cycle=60
+  [batch-size-adjusted] batch_size 65536 -> 131072 from measured batch time 0.137s
+  [cycle-accepted] height=1 hash=1c2d1383e42aa34e33b915a52005bd7146928c5f32a9aea13a18fdbd6226a46a nonce=0 hashes=65536 in 0.137s
+  [cycle-accepted] height=2 hash=12cb2d8344727e6d377ac008db14925a484f51593f0a3688c1aae67e8ae7a6c0 nonce=1 hashes=131072 in 0.280s
+  [cycle-accepted] height=3 hash=6f0436d563ce918df0aa25cb0bba96511eca4f6ae12edba95fe57b2e75c21019 nonce=0 hashes=131072 in 0.267s
+
+== errors / recovery events: 0 ==
+
+== persistence check (reopened database) ==
+  cycles visible after restart: 3
+
+RESULT: PASS - 3/3 autonomous cycles accepted by Bitcoin Core
+preserved mining.db -> /downloads/final-verification/evidence/preserved/ (mode 0o600)
+preserved agent_state.json -> /downloads/final-verification/evidence/preserved/ (mode 0o600)
+EXIT CODE: 0

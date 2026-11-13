@@ -1,0 +1,10 @@
+CUDA operational checks only
+driver_library: not loadable
+runtime_version_query_status: 0
+runtime_version: 13000
+cudaGetDeviceCount_status: 35
+actual_CUDA_execution: unavailable: CUDA unavailable: driver/runtime/device access required
+{"requested": "auto", "actual_backend": "cpu", "fallback_reason": "CUDA unavailable or self-test failed", "four_SHA256d_digests_match_hashlib": true}
+{"requested": "cuda", "actual_backend": "cpu", "fallback_reason": "CUDA unavailable or self-test failed", "four_SHA256d_digests_match_hashlib": true}
+{"requested": "cpu", "actual_backend": "cpu", "fallback_reason": null, "four_SHA256d_digests_match_hashlib": true}
+EXIT CODE: 0

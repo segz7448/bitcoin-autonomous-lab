@@ -1,0 +1,12 @@
+................................... [ 10%]
+.................................................................................................................................... [ 51%]
+................s........s.....................................................................................................................................                                [100%]
+================================================================== warnings summary ==================================================================
+../bal-deps/venv/lib/python3.10/site-packages/_pytest/config/__init__.py:1508
+  /tmp/bal-deps/venv/lib/python3.10/site-packages/_pytest/config/__init__.py:1508: PytestConfigWarning: assertions not in test modules or plugins will be ignored because assert statements are not executed by the underlying Python interpreter (are you using python -O?)
+  
+    self._warn_about_missing_assertion(mode)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+324 passed, 2 skipped, 1 warning, 211 subtests passed in 22.35s
+EXIT CODE: 0

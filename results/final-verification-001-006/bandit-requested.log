@@ -1,0 +1,129 @@
+[main]	INFO	profile include tests: None
+[main]	INFO	profile exclude tests: None
+[main]	INFO	cli include tests: None
+[main]	INFO	cli exclude tests: None
+[main]	INFO	running on Python 3.10.12
+[manager]	WARNING	Test in comment: fixed is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: COLUMNS is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: constant is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: bound is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: values is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: only is not a test name or id, ignoring
+[tester]	WARNING	nosec encountered (B608), but no failed test on file ./mining/engine/stats.py:152
+[tester]	WARNING	nosec encountered (B608), but no failed test on file ./mining/engine/stats.py:152
+[tester]	WARNING	nosec encountered (B608), but no failed test on file ./mining/engine/stats.py:152
+[manager]	WARNING	Test in comment: scheme is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: validated is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: in is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: __init__ is not a test name or id, ignoring
+Working... ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100% 0:00:00
+Run started:2026-11-13 16:26:36.246032+00:00
+
+Test results:
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: ./gpu/cuda/build.py:7:0
+6	import shutil
+7	import subprocess
+8	import tempfile
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: ./gpu/cuda/build.py:22:25
+21	            try:
+22	                result = subprocess.run([nvcc, '--shared', '-Xcompiler', '-fPIC',
+23	                                         '--cudart', 'shared', '--cudadevrt', 'none',
+24	                                         '-L' + str(Path(nvcc).resolve().parent.parent / 'lib'),
+25	                                         '-O3', str(root / 'engine.cu'), '-o', str(candidate)],
+26	                                        stdout=log, stderr=log, timeout=180, check=False)
+27	            except (OSError, subprocess.TimeoutExpired):
+
+--------------------------------------------------
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: ./gpu/cuda/install_userspace.py:7:0
+6	import argparse
+7	import subprocess
+8	import sys
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: ./gpu/cuda/install_userspace.py:25:21
+24	        try:
+25	            result = subprocess.run([sys.executable, '-m', 'pip', 'install',
+26	                                     '--target', str(destination),
+27	                                     *[p+'=='+VERSION for p in PACKAGES]],
+28	                                    stdout=log, stderr=log, timeout=300, check=False)
+29	        except (OSError, subprocess.TimeoutExpired):
+
+--------------------------------------------------
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: ./gpu/diagnostics/report.py:6:0
+5	import shutil
+6	import subprocess
+7	from pathlib import Path
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: ./gpu/diagnostics/report.py:63:18
+62	        try:
+63	            out = subprocess.run([compiler, '--version'], capture_output=True,
+64	                                 text=True, timeout=10, check=False)
+65	            version = re.search(r'release (\d+\.\d+)', out.stdout)
+
+--------------------------------------------------
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: ./node/node_manager.py:18:0
+17	import shutil
+18	import subprocess
+19	import time
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: ./node/node_manager.py:106:15
+105	        logger.info("starting bitcoind: %s", " ".join(cmd))
+106	        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+107	        if proc.returncode != 0:
+
+--------------------------------------------------
+
+Code scanned:
+	Total lines of code: 5746
+	Total lines skipped (#nosec): 0
+	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 2
+
+Run metrics:
+	Total issues (by severity):
+		Undefined: 0
+		Low: 8
+		Medium: 0
+		High: 0
+	Total issues (by confidence):
+		Undefined: 0
+		Low: 0
+		Medium: 0
+		High: 8
+Files skipped (0):
+EXIT CODE: 1

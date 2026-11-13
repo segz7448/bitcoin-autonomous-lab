@@ -1,0 +1,35 @@
+{
+  "integrity_check": "ok",
+  "sessions": [
+    {
+      "height": 1,
+      "block_hash": "1c2d1383e42aa34e33b915a52005bd7146928c5f32a9aea13a18fdbd6226a46a",
+      "accepted": 1,
+      "backend": "cpu",
+      "hashes": 65536,
+      "nonce": 0,
+      "submit_result": "accepted"
+    },
+    {
+      "height": 2,
+      "block_hash": "12cb2d8344727e6d377ac008db14925a484f51593f0a3688c1aae67e8ae7a6c0",
+      "accepted": 1,
+      "backend": "cpu",
+      "hashes": 131072,
+      "nonce": 1,
+      "submit_result": "accepted"
+    },
+    {
+      "height": 3,
+      "block_hash": "6f0436d563ce918df0aa25cb0bba96511eca4f6ae12edba95fe57b2e75c21019",
+      "accepted": 1,
+      "backend": "cpu",
+      "hashes": 131072,
+      "nonce": 0,
+      "submit_result": "accepted"
+    }
+  ],
+  "events": 0,
+  "mining_db_mode": "0o600",
+  "agent_state_mode": "0o600"
+}

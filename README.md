@@ -22,11 +22,11 @@ nonces, verifies solutions independently on the CPU, submits with
 `submitblock`, confirms acceptance on the active chain, records persistent
 SQLite statistics and decisions, and repeats without manual intervention.
 `generatetoaddress` is never used by the mining path. The current suite
-runs 326 automated tests: 324 pass, 2 skip (real-CUDA tests; GPU execution
+runs 334 automated tests: 332 pass, 2 skip (real-CUDA tests; GPU execution
 is unavailable in this environment and not claimed), including live
 regtest runs of multi-block autonomous cycles.
 
-Pre-TASK 007 correction milestone (latest): mining database and agent
+Pre-TASK 007 correction milestone: mining database and agent
 state files enforced owner-only (0600), agent shutdown reporting made
 truthful (no STOPPED while the worker is alive; explicit shutdown-timeout
 error), resource limits validated, documentation reconciled, and the
@@ -159,6 +159,19 @@ python3 -m unittest discover -s tests -t .  # full test suite
   hardware (source compiles under CUDA 13.0; runtime blocked here, honest
   CPU fallback).
 - **Not in scope yet:** mainnet mining, paid infrastructure.
+
+## Independent final verification (2026-11-13)
+
+CONDITIONAL PASS: source, available automated tests, live Regtest, static
+analysis and reviewed security checks pass. Actual CUDA execution remains
+unverified: CUDA 13.0 builds, but the driver cannot be loaded and the runtime
+returns insufficient-driver status 35. CPU fallback is verified.
+
+Independent review also found and fixed chain-database permission/path
+handling and an overridable TemplateManager chain guard. See
+`docs/FINAL_VERIFICATION_001_006.md` and
+`results/FINAL_VERIFICATION_001_006_RESULTS.md` for the baseline failures,
+corrections, exact commands, outputs, warnings and genuine captures.
 
 ## Honest scope notes
 

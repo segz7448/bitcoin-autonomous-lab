@@ -1,0 +1,163 @@
+FFFF.F..                                                     [100%]
+=================================== FAILURES ===================================
+_ TestChainStorePathSafety.test_dangling_symlink_refused_without_creating_target _
+
+self = <tests.test_final_verification.TestChainStorePathSafety testMethod=test_dangling_symlink_refused_without_creating_target>
+
+    @unittest.skipUnless(os.name == "posix", "POSIX symlink semantics")
+    def test_dangling_symlink_refused_without_creating_target(self):
+        victim = self.root / "missing.db"
+        self.db.symlink_to(victim)
+>       with self.assertRaises(ValueError):
+E       AssertionError: ValueError not raised
+
+tests/test_final_verification.py:53: AssertionError
+_______________ TestChainStorePathSafety.test_directory_refused ________________
+
+self = <tests.test_final_verification.TestChainStorePathSafety testMethod=test_directory_refused>
+
+    def test_directory_refused(self):
+        with self.assertRaises(ValueError):
+>           ChainStore(self.root)
+
+tests/test_final_verification.py:59: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def __init__(self, path: str | Path):
+        self.path = str(path)
+        Path(self.path).parent.mkdir(parents=True, exist_ok=True)
+        # Create the file private (0600) before SQLite opens it; WAL/SHM
+        # sidecar files inherit its mode.
+        if not os.path.exists(self.path):
+            os.close(os.open(self.path, os.O_CREAT | os.O_WRONLY, 0o600))
+>       conn = sqlite3.connect(self.path, timeout=10.0, check_same_thread=False)
+E       sqlite3.OperationalError: unable to open database file
+
+blockchain/storage.py:134: OperationalError
+_ TestChainStorePathSafety.test_existing_database_restricted_without_losing_data _
+
+self = <tests.test_final_verification.TestChainStorePathSafety testMethod=test_existing_database_restricted_without_losing_data>
+
+    @unittest.skipUnless(os.name == "posix", "POSIX permissions only")
+    def test_existing_database_restricted_without_losing_data(self):
+        with ChainStore(self.db) as store:
+            store.record_event("check", "survives")
+        os.chmod(self.db, 0o644)
+        with ChainStore(self.db) as store:
+            self.assertEqual(store.events()[0]["detail"], "survives")
+>       self.assertEqual(stat.S_IMODE(self.db.stat().st_mode), 0o600)
+E       AssertionError: 420 != 384
+
+tests/test_final_verification.py:34: AssertionError
+_ TestChainStorePathSafety.test_existing_symlink_refused_without_touching_target _
+
+self = <tests.test_final_verification.TestChainStorePathSafety testMethod=test_existing_symlink_refused_without_touching_target>
+
+    @unittest.skipUnless(os.name == "posix", "POSIX symlink semantics")
+    def test_existing_symlink_refused_without_touching_target(self):
+        victim = self.root / "victim.db"
+        with ChainStore(victim) as store:
+            store.record_event("check", "unchanged")
+        before = victim.read_bytes()
+        os.chmod(victim, 0o640)
+        self.db.symlink_to(victim)
+>       with self.assertRaises(ValueError):
+E       AssertionError: ValueError not raised
+
+tests/test_final_verification.py:44: AssertionError
+________ TestChainStorePathSafety.test_permission_failure_is_not_hidden ________
+
+self = <tests.test_final_verification.TestChainStorePathSafety testMethod=test_permission_failure_is_not_hidden>
+
+    @unittest.skipUnless(os.name == "posix", "POSIX permissions only")
+    def test_permission_failure_is_not_hidden(self):
+        with patch("blockchain.storage.os.chmod", side_effect=PermissionError):
+>           with self.assertRaises(PermissionError):
+E           AssertionError: PermissionError not raised
+
+tests/test_final_verification.py:64: AssertionError
+_ TestImmutableRegtestBoundary.test_nonregtest_override_refused_before_rpc (chain='main') _
+
+self = <tests.test_final_verification.TestImmutableRegtestBoundary testMethod=test_nonregtest_override_refused_before_rpc>
+
+    def test_nonregtest_override_refused_before_rpc(self):
+        for chain in ("main", "test", "testnet4", "signet", None, ""):
+            with self.subTest(chain=chain):
+                rpc = StubRPC(chain=chain)
+>               with self.assertRaises(ValueError):
+E               AssertionError: ValueError not raised
+
+tests/test_final_verification.py:73: AssertionError
+_ TestImmutableRegtestBoundary.test_nonregtest_override_refused_before_rpc (chain='test') _
+
+self = <tests.test_final_verification.TestImmutableRegtestBoundary testMethod=test_nonregtest_override_refused_before_rpc>
+
+    def test_nonregtest_override_refused_before_rpc(self):
+        for chain in ("main", "test", "testnet4", "signet", None, ""):
+            with self.subTest(chain=chain):
+                rpc = StubRPC(chain=chain)
+>               with self.assertRaises(ValueError):
+E               AssertionError: ValueError not raised
+
+tests/test_final_verification.py:73: AssertionError
+_ TestImmutableRegtestBoundary.test_nonregtest_override_refused_before_rpc (chain='testnet4') _
+
+self = <tests.test_final_verification.TestImmutableRegtestBoundary testMethod=test_nonregtest_override_refused_before_rpc>
+
+    def test_nonregtest_override_refused_before_rpc(self):
+        for chain in ("main", "test", "testnet4", "signet", None, ""):
+            with self.subTest(chain=chain):
+                rpc = StubRPC(chain=chain)
+>               with self.assertRaises(ValueError):
+E               AssertionError: ValueError not raised
+
+tests/test_final_verification.py:73: AssertionError
+_ TestImmutableRegtestBoundary.test_nonregtest_override_refused_before_rpc (chain='signet') _
+
+self = <tests.test_final_verification.TestImmutableRegtestBoundary testMethod=test_nonregtest_override_refused_before_rpc>
+
+    def test_nonregtest_override_refused_before_rpc(self):
+        for chain in ("main", "test", "testnet4", "signet", None, ""):
+            with self.subTest(chain=chain):
+                rpc = StubRPC(chain=chain)
+>               with self.assertRaises(ValueError):
+E               AssertionError: ValueError not raised
+
+tests/test_final_verification.py:73: AssertionError
+_ TestImmutableRegtestBoundary.test_nonregtest_override_refused_before_rpc (chain=None) _
+
+self = <tests.test_final_verification.TestImmutableRegtestBoundary testMethod=test_nonregtest_override_refused_before_rpc>
+
+    def test_nonregtest_override_refused_before_rpc(self):
+        for chain in ("main", "test", "testnet4", "signet", None, ""):
+            with self.subTest(chain=chain):
+                rpc = StubRPC(chain=chain)
+>               with self.assertRaises(ValueError):
+E               AssertionError: ValueError not raised
+
+tests/test_final_verification.py:73: AssertionError
+_ TestImmutableRegtestBoundary.test_nonregtest_override_refused_before_rpc (chain='') _
+
+self = <tests.test_final_verification.TestImmutableRegtestBoundary testMethod=test_nonregtest_override_refused_before_rpc>
+
+    def test_nonregtest_override_refused_before_rpc(self):
+        for chain in ("main", "test", "testnet4", "signet", None, ""):
+            with self.subTest(chain=chain):
+                rpc = StubRPC(chain=chain)
+>               with self.assertRaises(ValueError):
+E               AssertionError: ValueError not raised
+
+tests/test_final_verification.py:73: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_final_verification.py::TestChainStorePathSafety::test_dangling_symlink_refused_without_creating_target
+FAILED tests/test_final_verification.py::TestChainStorePathSafety::test_directory_refused
+FAILED tests/test_final_verification.py::TestChainStorePathSafety::test_existing_database_restricted_without_losing_data
+FAILED tests/test_final_verification.py::TestChainStorePathSafety::test_existing_symlink_refused_without_touching_target
+FAILED tests/test_final_verification.py::TestChainStorePathSafety::test_permission_failure_is_not_hidden
+SUBFAILED(chain='main') tests/test_final_verification.py::TestImmutableRegtestBoundary::test_nonregtest_override_refused_before_rpc
+SUBFAILED(chain='test') tests/test_final_verification.py::TestImmutableRegtestBoundary::test_nonregtest_override_refused_before_rpc
+SUBFAILED(chain='testnet4') tests/test_final_verification.py::TestImmutableRegtestBoundary::test_nonregtest_override_refused_before_rpc
+SUBFAILED(chain='signet') tests/test_final_verification.py::TestImmutableRegtestBoundary::test_nonregtest_override_refused_before_rpc
+SUBFAILED(chain=None) tests/test_final_verification.py::TestImmutableRegtestBoundary::test_nonregtest_override_refused_before_rpc
+SUBFAILED(chain='') tests/test_final_verification.py::TestImmutableRegtestBoundary::test_nonregtest_override_refused_before_rpc
+11 failed, 3 passed, 6 subtests passed in 0.07s

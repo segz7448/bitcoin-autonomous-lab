@@ -1,0 +1,13 @@
+commit	0
+core-version	0
+live-regtest	0
+pytest-normal	0
+pytest-optimized	0
+pyflakes	0
+compileall	0
+bandit-requested	1
+bandit-ignore-nosec	1
+status-final	0
+cuda-build	0
+cuda-operational	0
+observed-regtest	0

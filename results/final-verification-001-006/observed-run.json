@@ -1,0 +1,124 @@
+{
+  "built": [
+    {
+      "height": 1,
+      "builder": "mining.engine.builder.build_candidate"
+    },
+    {
+      "height": 2,
+      "builder": "mining.engine.builder.build_candidate"
+    },
+    {
+      "height": 3,
+      "builder": "mining.engine.builder.build_candidate"
+    }
+  ],
+  "batches": [
+    {
+      "backend": "cpu",
+      "hashes_computed": 4096,
+      "requested_backend": "auto"
+    },
+    {
+      "backend": "cpu",
+      "hashes_computed": 65536,
+      "requested_backend": "auto"
+    },
+    {
+      "backend": "cpu",
+      "hashes_computed": 131072,
+      "requested_backend": "auto"
+    },
+    {
+      "backend": "cpu",
+      "hashes_computed": 131072,
+      "requested_backend": "auto"
+    }
+  ],
+  "cpu_verifications": [
+    {
+      "valid": true,
+      "reason": "ok",
+      "hash": "5c7f70189ceaa2b55ea31a4a3bd692e64f0723e7b4e0b515e06147eee60bc245",
+      "bits": "207fffff",
+      "hash_int_hex": "5c7f70189ceaa2b55ea31a4a3bd692e64f0723e7b4e0b515e06147eee60bc245",
+      "target_hex": "7fffff0000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "valid": true,
+      "reason": "ok",
+      "hash": "24bef4ea8a755355bb119c9e1f0aee83a75e0459c29451c131126d78e381593d",
+      "bits": "207fffff",
+      "hash_int_hex": "24bef4ea8a755355bb119c9e1f0aee83a75e0459c29451c131126d78e381593d",
+      "target_hex": "7fffff0000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "valid": true,
+      "reason": "ok",
+      "hash": "422ecbd67eef576f898d4987b79d880648637c235456202376bce9280ea7cf50",
+      "bits": "207fffff",
+      "hash_int_hex": "422ecbd67eef576f898d4987b79d880648637c235456202376bce9280ea7cf50",
+      "target_hex": "7fffff0000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "rpc_methods": [
+    "getnetworkinfo",
+    "getblockchaininfo",
+    "getblockchaininfo",
+    "getblockcount",
+    "createwallet",
+    "getnewaddress",
+    "getaddressinfo",
+    "getblockchaininfo",
+    "getblockchaininfo",
+    "getblocktemplate",
+    "getblockchaininfo",
+    "getblockchaininfo",
+    "getblocktemplate",
+    "getblockchaininfo",
+    "getblocktemplate",
+    "getnetworkinfo",
+    "getbestblockhash",
+    "submitblock",
+    "getblock",
+    "getblockchaininfo",
+    "getblockchaininfo",
+    "getblocktemplate",
+    "getnetworkinfo",
+    "getbestblockhash",
+    "submitblock",
+    "getblock",
+    "getblockchaininfo",
+    "getblockchaininfo",
+    "getblocktemplate",
+    "getnetworkinfo",
+    "getbestblockhash",
+    "submitblock",
+    "getblock",
+    "getblockchaininfo",
+    "getblockchaininfo",
+    "getblockchaininfo",
+    "stop"
+  ],
+  "submissions": [
+    {
+      "block_hash": "5c7f70189ceaa2b55ea31a4a3bd692e64f0723e7b4e0b515e06147eee60bc245",
+      "bytes": 167,
+      "block_hex": "0000002006226e46111a0b59caaf126043eb5bbf28c34f3a5e332a1fc7b2b73cf188910f872c988f80e594b6095bef74a8c59dc2f9b50adf17b46b3b6f189959fc25ee13093bf76affff7f20000000000102000000010000000000000000000000000000000000000000000000000000000000000000ffffffff045162616cffffffff0100f2052a010000001600148f3cc0f0708c64b591412cc1242644ac34c2dba500000000",
+      "submitblock_result": null
+    },
+    {
+      "block_hash": "24bef4ea8a755355bb119c9e1f0aee83a75e0459c29451c131126d78e381593d",
+      "bytes": 167,
+      "block_hex": "0000002045c20be6ee4761e015b5e0b4e723074fe692d63b4a1aa35eb5a2ea9c18707f5c58998326380dee6c8dcf894746826ca74c6ba6561356f581900bc50b727bf9a60a3bf76affff7f20010000000102000000010000000000000000000000000000000000000000000000000000000000000000ffffffff045262616cffffffff0100f2052a010000001600148f3cc0f0708c64b591412cc1242644ac34c2dba500000000",
+      "submitblock_result": null
+    },
+    {
+      "block_hash": "422ecbd67eef576f898d4987b79d880648637c235456202376bce9280ea7cf50",
+      "bytes": 167,
+      "block_hex": "000000203d5981e3786d1231c15194c259045ea783ee0a1f9e9c11bb5553758aeaf4be24df875a2e09103245b70b4da3d85c68e7664c45f9c58d37c2b13fb4e17ca606e00a3bf76affff7f20000000000102000000010000000000000000000000000000000000000000000000000000000000000000ffffffff045362616cffffffff0100f2052a010000001600148f3cc0f0708c64b591412cc1242644ac34c2dba500000000",
+      "submitblock_result": null
+    }
+  ],
+  "milestone_exit_code": 0
+}
