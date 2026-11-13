@@ -1,0 +1,6 @@
+# Bitcoin Autonomous Lab has no third-party Python dependencies.
+# All application code runs on the Python 3.10+ standard library.
+#
+# External requirement: Bitcoin Core (bitcoind / bitcoin-cli), used as the
+# node under management and as the independent consensus validator.
+# See docs/SETUP.md for verified download and checksum steps.
