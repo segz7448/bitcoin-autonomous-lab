@@ -141,3 +141,14 @@ python3 -m unittest discover -s tests -t .  # full test suite
   transactions, and not something this milestone attempts.
 - The CPU benchmark numbers in `results/` describe only the machine they
   were measured on.
+
+## TASK 004: CUDA computation engine
+
+Real CUDA SHA256d/parallel nonce-search source, independent CPU verification,
+allowlisted diagnostics, repeated benchmarks, and CPU/CUDA/auto computation APIs
+are implemented. CUDA 13.0 was installed in user space and the source compiled.
+Actual GPU execution remains blocked by unavailable system driver/device access;
+no GPU speed or successful GPU mining is claimed. CPU fallback and live Core
+Regtest validation pass. See [CUDA technical guide](docs/CUDA_TASK_004.md),
+[CUDA test results](results/CUDA_TEST_RESULTS_004.md), and structured diagnostics
+in `results/cuda-004-diagnostics.json`. Earlier audit-004 documents remain history.

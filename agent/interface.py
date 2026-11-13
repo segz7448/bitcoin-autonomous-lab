@@ -235,3 +235,60 @@ class AgentInterface:
                 )
         except Exception as exc:
             return self._err(exc)
+
+    # --- TASK 004 CUDA/CPU computation (no network submissions) ----------------
+    def cuda_diagnostics(self) -> dict:
+        try:
+            from gpu.diagnostics.report import collect
+            diagnostics = collect()
+            return self._ok(diagnostics=diagnostics,
+                            available=diagnostics['gpu_available'],
+                            operational=diagnostics['gpu_operational'])
+        except Exception:
+            return {'ok': False, 'error': 'CUDA diagnostics failed'}
+
+    def compute_sha256d(self, header: bytes, backend: str = 'auto') -> dict:
+        try:
+            from gpu.engine import ComputeEngine
+            from mining.pow.target import MAX_UINT256
+            if not isinstance(header, bytes) or len(header) != 80:
+                raise ValueError('header must be exactly 80 bytes')
+            nonce = int.from_bytes(header[76:80], 'little')
+            result = ComputeEngine(backend).batch(header, MAX_UINT256, nonce, 1)
+            return self._ok(result=result, digest=result['digests'][0])
+        except Exception as exc:
+            return self._err(exc)
+
+    def compute_nonce_batch(self, header: bytes, target: int, start_nonce: int = 0,
+                            count: int = 4096, threads: int = 128,
+                            backend: str = 'auto') -> dict:
+        try:
+            from gpu.engine import ComputeEngine
+            return self._ok(result=ComputeEngine(backend).batch(
+                header, target, start_nonce, count, threads))
+        except Exception as exc:
+            return self._err(exc)
+
+    def verify_compute_candidate(self, header, target, nonce, digest, bits=None,
+                                 pow_limit=(1 << 256) - 1) -> dict:
+        try:
+            from gpu.engine import verify_candidate
+            return self._ok(verified=verify_candidate(header, target, nonce,
+                                                      digest, bits, pow_limit))
+        except Exception as exc:
+            return self._err(exc)
+
+    def benchmark_compute(self, batch_sizes=(256, 4096), thread_counts=(64,128,256),
+                          repeats=3) -> dict:
+        try:
+            from gpu.benchmark.run import run
+            self._compute_benchmarks = run(batch_sizes, thread_counts, repeats)
+            return self._ok(benchmark=self._compute_benchmarks)
+        except Exception as exc:
+            return self._err(exc)
+
+    def compute_benchmark_results(self) -> dict:
+        result = getattr(self, '_compute_benchmarks', None)
+        if result is None:
+            return {'ok': False, 'error': 'No benchmark has been run on this interface'}
+        return self._ok(benchmark=result)

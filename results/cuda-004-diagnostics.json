@@ -1,0 +1,31 @@
+{
+  "gpu_available": null,
+  "gpu_operational": false,
+  "cuda_accessible": false,
+  "device_count": null,
+  "driver_version": null,
+  "runtime_version": 13000,
+  "compiler_version": "13.0",
+  "system_ram": {
+    "available_bytes": 1777332224,
+    "total_bytes": 2079145984
+  },
+  "gpu_memory_available_bytes": null,
+  "gpu_memory_total_bytes": null,
+  "initialization_status": 35,
+  "allocation_status": "not_run",
+  "kernel_execution_status": "not_run",
+  "limits": {
+    "max_threads_per_block": null,
+    "max_block_dim_x": null,
+    "max_block_dim_y": null,
+    "max_block_dim_z": null,
+    "max_grid_dim_x": null,
+    "max_grid_dim_y": null,
+    "max_grid_dim_z": null
+  },
+  "blockers": [
+    "CUDA driver library not loadable",
+    "CUDA runtime cannot access a device"
+  ]
+}

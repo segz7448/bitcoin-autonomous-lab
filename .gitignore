@@ -6,3 +6,7 @@ venv/
 .bal/
 results/local/
 .DS_Store
+*.so
+gpu/diagnostics/local-report.json
+
+.coverage

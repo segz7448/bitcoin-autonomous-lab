@@ -1,0 +1,75 @@
+{
+  "method": "end-to-end batch including CPU verification; not mining throughput",
+  "raw_kernel_throughput": null,
+  "device_batch_method": "allocation + transfers + synchronized kernel, excludes CPU verification",
+  "cuda_initialization_seconds": 5.8070000363841245e-06,
+  "cuda_status": "unavailable_not_benchmarked",
+  "diagnostics": {
+    "gpu_available": null,
+    "gpu_operational": false,
+    "cuda_accessible": false,
+    "device_count": null,
+    "driver_version": null,
+    "runtime_version": 13000,
+    "compiler_version": "13.0",
+    "system_ram": {
+      "available_bytes": 1774751744,
+      "total_bytes": 2079145984
+    },
+    "gpu_memory_available_bytes": null,
+    "gpu_memory_total_bytes": null,
+    "initialization_status": 35,
+    "allocation_status": "not_run",
+    "kernel_execution_status": "not_run",
+    "limits": {
+      "max_threads_per_block": null,
+      "max_block_dim_x": null,
+      "max_block_dim_y": null,
+      "max_block_dim_z": null,
+      "max_grid_dim_x": null,
+      "max_grid_dim_y": null,
+      "max_grid_dim_z": null
+    },
+    "blockers": [
+      "CUDA driver library not loadable",
+      "CUDA runtime cannot access a device"
+    ]
+  },
+  "rows": [
+    {
+      "backend": "cpu",
+      "batch_size": 256,
+      "threads": null,
+      "repeats": 3,
+      "hashes_per_repeat": 256,
+      "total_hashes": 768,
+      "elapsed_seconds": [
+        0.00023212499996816405,
+        0.0002652649999959067,
+        0.00023193300000912132
+      ],
+      "median_seconds": 0.00023212499996816405,
+      "hashes_per_second": 1102854.0658486178,
+      "device_batch_seconds": null,
+      "requested_gpu_bytes": null
+    },
+    {
+      "backend": "cpu",
+      "batch_size": 4096,
+      "threads": null,
+      "repeats": 3,
+      "hashes_per_repeat": 4096,
+      "total_hashes": 12288,
+      "elapsed_seconds": [
+        0.003981112000019493,
+        0.003969429999983731,
+        0.0034956399999828136
+      ],
+      "median_seconds": 0.003969429999983731,
+      "hashes_per_second": 1031886.190212899,
+      "device_batch_seconds": null,
+      "requested_gpu_bytes": null
+    }
+  ],
+  "selected_cuda_configuration": null
+}
